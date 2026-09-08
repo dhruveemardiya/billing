@@ -1,0 +1,489 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Electricity Bill Generator</title>
+<style>
+  /* ---------------------------------------------------------
+     DESIGN TOKENS
+     Theme: utility/electricity — deep circuit-navy + live-wire
+     amber. Avoids the generic cream/terracotta and near-black/
+     neon AI-defaults; instead borrows its palette from a meter
+     dial and a voltage trace.
+  --------------------------------------------------------- */
+  :root {
+    --navy-900: #7a2e0a;   /* deep ink, now a burnt-orange-brown for headings */
+    --navy-700: #9a3d12;   /* secondary ink */
+    --navy-500: #8a6a5c;   /* muted text, warm gray-brown */
+    --slate-100: #fff6ee;  /* page background, warm white */
+    --slate-200: #ffe1c2;  /* borders, soft orange */
+    --white: #ffffff;
+    --amber-500: #ff7a1a;  /* primary orange accent */
+    --amber-600: #e8630a;
+    --amber-glow: #ffb877;
+    --success-bg: #eafaf1;
+    --success-ink: #1e8449;
+    --success-border: #b7e6c9;
+    --error-bg: #fdecea;
+    --error-ink: #c0392b;
+    --error-border: #f3c6c0;
+    --radius-lg: 16px;
+    --radius-md: 12px;
+    --radius-sm: 8px;
+    --shadow-card: 0 1px 2px rgba(122,46,10,0.05), 0 12px 32px rgba(122,46,10,0.08);
+    --shadow-hover: 0 18px 40px rgba(122,46,10,0.14);
+    --font-ui: "Inter", "Segoe UI", -apple-system, BlinkMacSystemFont, Roboto, Arial, sans-serif;
+  }
+
+  * { box-sizing: border-box; }
+
+  html, body {
+    height: 100%;
+  }
+
+  body {
+    font-family: var(--font-ui);
+    background: var(--slate-100);
+    /* Faint circuit-grid texture — signature background detail,
+       evokes a utility schematic without any imagery/dependency */
+    background-image:
+      radial-gradient(circle at 1px 1px, rgba(11,23,48,0.05) 1px, transparent 0);
+    background-size: 26px 26px;
+    color: var(--navy-900);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 100vh;
+    margin: 0;
+    padding: 32px 16px;
+  }
+
+  /* Centered page container with a sensible max width */
+  .page {
+    width: 100%;
+    max-width: 480px;
+    animation: fade-in 0.5s ease both;
+  }
+
+  @keyframes fade-in {
+    from { opacity: 0; transform: translateY(8px); }
+    to   { opacity: 1; transform: translateY(0); }
+  }
+
+  /* Brand strip above the card — small signature: a live "voltage"
+     trace line that gives the utility identity without a hero image */
+  .brand {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-bottom: 18px;
+    padding-left: 4px;
+  }
+  .brand-mark {
+    width: 34px;
+    height: 34px;
+    border-radius: 9px;
+    background: linear-gradient(135deg, var(--navy-900), var(--navy-700));
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+    box-shadow: 0 4px 10px rgba(11,23,48,0.25);
+  }
+  .brand-mark svg { width: 18px; height: 18px; }
+  .brand-name {
+    font-size: 13px;
+    font-weight: 700;
+    letter-spacing: 0.02em;
+    color: var(--navy-700);
+    text-transform: uppercase;
+  }
+
+  .card {
+    background: var(--white);
+    border: 1px solid var(--slate-200);
+    border-radius: var(--radius-lg);
+    padding: 36px 36px 32px;
+    box-shadow: var(--shadow-card);
+  }
+
+  @media (max-width: 480px) {
+    .card { padding: 28px 22px 24px; }
+  }
+
+  h1 {
+    font-size: 21px;
+    font-weight: 700;
+    letter-spacing: -0.01em;
+    margin: 0 0 6px;
+    color: var(--navy-900);
+  }
+
+  p.sub {
+    color: var(--navy-500);
+    font-size: 13.5px;
+    line-height: 1.5;
+    margin: 0 0 28px;
+  }
+
+  /* Section heading for visual hierarchy above the two uploads */
+  .section-label {
+    font-size: 11px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    color: var(--navy-500);
+    margin: 0 0 14px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .section-label::after {
+    content: "";
+    flex: 1;
+    height: 1px;
+    background: var(--slate-200);
+  }
+
+  form { margin: 0; }
+
+  .field { margin-bottom: 20px; }
+
+  label.field-label {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 13.5px;
+    font-weight: 600;
+    color: var(--navy-900);
+    margin-bottom: 8px;
+  }
+  label.field-label svg {
+    width: 16px;
+    height: 16px;
+    color: var(--amber-600);
+    flex-shrink: 0;
+  }
+
+  /* Upload dropzone — replaces the plain file input visually while
+     keeping the underlying <input type="file"> fully functional
+     and accessible (input remains focusable + keyboard-operable) */
+  .dropzone {
+    position: relative;
+    border: 1.5px dashed var(--slate-200);
+    border-radius: var(--radius-md);
+    background: var(--slate-100);
+    padding: 18px 16px;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    transition: border-color 0.18s ease, background 0.18s ease, box-shadow 0.18s ease;
+    cursor: pointer;
+  }
+  .dropzone:hover {
+    border-color: var(--amber-500);
+    background: #fff8ec;
+  }
+  .dropzone.has-file {
+    border-style: solid;
+    border-color: var(--success-border);
+    background: var(--success-bg);
+  }
+  .dropzone.drag-active {
+    border-color: var(--amber-500);
+    background: #fff3dd;
+    box-shadow: 0 0 0 4px rgba(245,165,36,0.15);
+  }
+  .dropzone input[type="file"] {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    opacity: 0;
+    cursor: pointer;
+    margin: 0;
+  }
+  .dropzone input[type="file"]:focus-visible ~ .dz-icon {
+    outline: 2px solid var(--amber-600);
+    outline-offset: 2px;
+    border-radius: 8px;
+  }
+  .dz-icon {
+    width: 38px;
+    height: 38px;
+    border-radius: 10px;
+    background: var(--white);
+    border: 1px solid var(--slate-200);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+  }
+  .dz-icon svg { width: 18px; height: 18px; color: var(--navy-500); }
+  .dropzone.has-file .dz-icon { border-color: var(--success-border); }
+  .dropzone.has-file .dz-icon svg { color: var(--success-ink); }
+
+  .dz-text { min-width: 0; }
+  .dz-title {
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--navy-900);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .dz-hint {
+    font-size: 12px;
+    color: var(--navy-500);
+    margin-top: 2px;
+  }
+  .dropzone.has-file .dz-hint { color: var(--success-ink); }
+
+  /* Generate button — gradient with a subtle "charge" hover effect */
+  button#generate-btn {
+    width: 100%;
+    height: 48px;
+    padding: 0 16px;
+    background: linear-gradient(135deg, var(--amber-500), var(--amber-600));
+    color: var(--navy-900);
+    border: none;
+    border-radius: var(--radius-md);
+    font-size: 14.5px;
+    font-family: inherit;
+    font-weight: 700;
+    letter-spacing: 0.01em;
+    cursor: pointer;
+    margin-top: 8px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 10px;
+    box-shadow: 0 6px 16px rgba(245,165,36,0.35);
+    transition: transform 0.15s ease, box-shadow 0.15s ease, background 0.15s ease;
+  }
+  button#generate-btn:hover:not(:disabled) {
+    transform: translateY(-1px);
+    box-shadow: 0 10px 22px rgba(245,165,36,0.45);
+  }
+  button#generate-btn:active:not(:disabled) {
+    transform: translateY(0);
+  }
+  button#generate-btn:focus-visible {
+    outline: 2px solid var(--navy-900);
+    outline-offset: 2px;
+  }
+  button#generate-btn:disabled {
+    background: #f0d9a8;
+    color: #8a7444;
+    cursor: not-allowed;
+    box-shadow: none;
+  }
+
+  /* Loading spinner shown inside the button while generating */
+  .spinner {
+    width: 16px;
+    height: 16px;
+    border-radius: 50%;
+    border: 2px solid rgba(11,23,48,0.25);
+    border-top-color: var(--navy-900);
+    animation: spin 0.7s linear infinite;
+    flex-shrink: 0;
+  }
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  /* Status / alert area */
+  #status {
+    margin-top: 18px;
+    font-size: 13.5px;
+    min-height: 0;
+  }
+  #status:empty { margin-top: 0; }
+  #status .alert {
+    display: flex;
+    align-items: flex-start;
+    gap: 10px;
+    padding: 12px 14px;
+    border-radius: var(--radius-sm);
+    border: 1px solid transparent;
+    line-height: 1.45;
+    animation: fade-in 0.25s ease both;
+  }
+  #status .alert svg { width: 17px; height: 17px; flex-shrink: 0; margin-top: 1px; }
+  #status.success .alert {
+    background: var(--success-bg);
+    color: var(--success-ink);
+    border-color: var(--success-border);
+  }
+  #status.error .alert {
+    background: var(--error-bg);
+    color: var(--error-ink);
+    border-color: var(--error-border);
+  }
+
+  /* Reduced motion respect */
+  @media (prefers-reduced-motion: reduce) {
+    .page, #status .alert { animation: none; }
+    button#generate-btn, .dropzone { transition: none; }
+    .spinner { animation: spin 1s linear infinite; }
+  }
+</style>
+</head>
+<body>
+  <div class="page">
+    <div class="brand" aria-hidden="true">
+      <span class="brand-mark">
+        <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+          <path d="M13 2L4 14H11L10 22L20 9H13L13 2Z" fill="#FFFFFF"/>
+        </svg>
+      </span>
+      <span class="brand-name">Bill Generator</span>
+    </div>
+
+    <div class="card">
+      <h1>Electricity Bill Generator</h1>
+      <p class="sub">Upload a template bill and consumer data to generate one PDF per row.</p>
+
+      <p class="section-label">Source files</p>
+
+      <form id="generate-form">
+        <div class="field">
+          <label class="field-label" for="template_pdf">
+            <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/></svg>
+            Template PDF
+          </label>
+          <div class="dropzone" id="template_pdf-dropzone">
+            <input type="file" id="template_pdf" name="template_pdf" accept=".pdf" required>
+            <span class="dz-icon">
+              <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 16V4M12 4l-4 4M12 4l4 4"/><path d="M4 16v3a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-3"/></svg>
+            </span>
+            <span class="dz-text">
+              <span class="dz-title" id="template_pdf-filename">Choose a PDF template</span>
+              <span class="dz-hint">Click or drag file here · .pdf</span>
+            </span>
+          </div>
+        </div>
+
+        <div class="field">
+          <label class="field-label" for="excel_file">
+            <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M3 9h18M9 21V9"/></svg>
+            Consumer Data (Excel)
+          </label>
+          <div class="dropzone" id="excel_file-dropzone">
+            <input type="file" id="excel_file" name="excel_file" accept=".xlsx,.xls" required>
+            <span class="dz-icon">
+              <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 16V4M12 4l-4 4M12 4l4 4"/><path d="M4 16v3a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-3"/></svg>
+            </span>
+            <span class="dz-text">
+              <span class="dz-title" id="excel_file-filename">Choose an Excel file</span>
+              <span class="dz-hint">Click or drag file here · .xlsx, .xls</span>
+            </span>
+          </div>
+        </div>
+
+        <button type="submit" id="generate-btn">
+          <span id="generate-btn-label">Generate PDFs</span>
+        </button>
+      </form>
+
+      <div id="status" role="status" aria-live="polite"></div>
+    </div>
+  </div>
+
+<script>
+const form = document.getElementById("generate-form");
+const statusEl = document.getElementById("status");
+const btn = document.getElementById("generate-btn");
+const btnLabel = document.getElementById("generate-btn-label");
+
+/* ---- UI-only enhancement: show selected file name + drag styling.
+   Does not alter form submission, field names, or IDs. ---- */
+function wireDropzone(inputId) {
+  const input = document.getElementById(inputId);
+  const dropzone = document.getElementById(inputId + "-dropzone");
+  const filenameEl = document.getElementById(inputId + "-filename");
+  const defaultText = filenameEl.textContent;
+
+  input.addEventListener("change", () => {
+    if (input.files && input.files.length > 0) {
+      filenameEl.textContent = input.files[0].name;
+      dropzone.classList.add("has-file");
+    } else {
+      filenameEl.textContent = defaultText;
+      dropzone.classList.remove("has-file");
+    }
+  });
+
+  ["dragenter", "dragover"].forEach(evt => {
+    dropzone.addEventListener(evt, (e) => {
+      e.preventDefault();
+      dropzone.classList.add("drag-active");
+    });
+  });
+  ["dragleave", "drop"].forEach(evt => {
+    dropzone.addEventListener(evt, (e) => {
+      e.preventDefault();
+      dropzone.classList.remove("drag-active");
+    });
+  });
+  dropzone.addEventListener("drop", (e) => {
+    if (e.dataTransfer && e.dataTransfer.files && e.dataTransfer.files.length > 0) {
+      input.files = e.dataTransfer.files;
+      input.dispatchEvent(new Event("change"));
+    }
+  });
+}
+wireDropzone("template_pdf");
+wireDropzone("excel_file");
+
+/* ---- Alert icon markup for status states ---- */
+const successIcon = '<svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6L9 17l-5-5"/></svg>';
+const errorIcon = '<svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M12 8v5M12 16h.01"/></svg>';
+
+/* ---- Original submit logic, unchanged: same endpoint, same
+   FormData, same blob/download handling, same status semantics.
+   Only the status markup and button contents are enriched. ---- */
+form.addEventListener("submit", async (e) => {
+  e.preventDefault();
+  statusEl.className = "";
+  statusEl.innerHTML = "";
+
+  const formData = new FormData(form);
+  btn.disabled = true;
+  btn.innerHTML = '<span class="spinner" aria-hidden="true"></span><span>Generating...</span>';
+
+  try {
+    const response = await fetch("/generate", { method: "POST", body: formData });
+
+    if (!response.ok) {
+      const data = await response.json().catch(() => ({}));
+      throw new Error(data.error || "Something went wrong.");
+    }
+
+    const blob = await response.blob();
+    const count = response.headers.get("X-Generated-Count");
+    const url = window.URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = "Generated_Bills.zip";
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    window.URL.revokeObjectURL(url);
+
+    statusEl.className = "success";
+    const message = count
+      ? `Done! ${count} bill(s) generated and downloaded.`
+      : "Done! Your bills have been downloaded.";
+    statusEl.innerHTML = `<div class="alert">${successIcon}<span>${message}</span></div>`;
+  } catch (err) {
+    statusEl.className = "error";
+    statusEl.innerHTML = `<div class="alert">${errorIcon}<span>${err.message}</span></div>`;
+  } finally {
+    btn.disabled = false;
+    btn.innerHTML = '<span id="generate-btn-label">Generate PDFs</span>';
+  }
+});
+</script>
+</body>
+</html>

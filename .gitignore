@@ -1,0 +1,9 @@
+.venv/
+project/.venv/
+__pycache__/
+project/__pycache__/
+*.pyc
+*.log
+.env
+output/
+uploads/
