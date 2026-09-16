@@ -1,28 +1,37 @@
 """
 app.py
 ======
-Flask web application. Serves a single upload page where the user provides
-a template PDF and an Excel file of consumer data, then generates one bill
-PDF per row (via billing_engine + pdf_mapper + pdf_generator) and returns
-all of them as a single ZIP download.
+Flask web application for Excel-to-PDF bill generation.
+Dynamically detects fields, variables, and layout from uploaded Demo PDFs
+(using DEMONEWPDF.pdf as the master template), validates Excel column mappings,
+reports warnings for unmapped items, and generates 1 PDF per Excel record.
 """
 
 import os
 import uuid
+import json
 
-from flask import Flask, render_template, request, send_file, jsonify
+from flask import Flask, render_template, request, send_file, jsonify, session, redirect, url_for
 
 import config
 import excel_reader
 import billing_engine
 import pdf_generator
-from utils.file_utils import safe_customer_id, zip_directory, clear_directory
+import template_detector
+import mapping_engine
+import auth_manager
+from utils.file_utils import safe_customer_id, zip_directory, build_bill_filename, extract_billing_month_tag
 
 app = Flask(__name__)
+app.secret_key = os.environ.get("FLASK_SECRET_KEY", "billing_portal_auth_secret_session_key_2026")
 app.config["MAX_CONTENT_LENGTH"] = config.MAX_CONTENT_LENGTH_MB * 1024 * 1024
 
 os.makedirs(config.UPLOAD_FOLDER, exist_ok=True)
 os.makedirs(config.OUTPUT_FOLDER, exist_ok=True)
+
+DEFAULT_MASTER_TEMPLATE = os.path.join(os.path.dirname(os.path.abspath(__file__)), "DEMONEWPDF.pdf")
+if not os.path.exists(DEFAULT_MASTER_TEMPLATE):
+    DEFAULT_MASTER_TEMPLATE = os.path.join(os.path.dirname(os.path.abspath(__file__)), "demo.pdf")
 
 
 def _allowed_file(filename: str, allowed_extensions: set) -> bool:
@@ -31,21 +40,181 @@ def _allowed_file(filename: str, allowed_extensions: set) -> bool:
 
 @app.route("/")
 def index():
-    return render_template("index.html")
+    if not session.get("authenticated"):
+        return redirect(url_for("login_page"))
+    master_name = os.path.basename(DEFAULT_MASTER_TEMPLATE)
+    return render_template("index.html", master_template_name=master_name)
+
+
+@app.route("/login")
+def login_page():
+    if session.get("authenticated"):
+        return redirect(url_for("index"))
+    return render_template("login.html")
+
+
+@app.route("/api/login", methods=["POST"])
+def api_login():
+    data = request.get_json(force=True, silent=True) or {}
+    username = data.get("username", "")
+    password = data.get("password", "")
+    if auth_manager.check_credentials(username, password):
+        session["authenticated"] = True
+        session["user"] = "Admin"
+        return jsonify({"success": True, "message": "Login successful."})
+    return jsonify({"success": False, "error": "Invalid username or password. Please try again."}), 401
+
+
+@app.route("/api/verify-pin", methods=["POST"])
+def api_verify_pin():
+    data = request.get_json(force=True, silent=True) or {}
+    pin = data.get("pin", "")
+    if auth_manager.verify_pin(pin):
+        return jsonify({"success": True, "message": "PIN verified successfully."})
+    return jsonify({"success": False, "error": "Invalid security PIN. Please enter the correct 6-digit PIN."}), 400
+
+
+@app.route("/api/reset-password", methods=["POST"])
+def api_reset_password():
+    data = request.get_json(force=True, silent=True) or {}
+    pin = data.get("pin", "")
+    new_password = data.get("new_password", "")
+    confirm_password = data.get("confirm_password", "")
+    success, msg = auth_manager.update_password(pin, new_password, confirm_password)
+    if success:
+        return jsonify({"success": True, "message": msg})
+    return jsonify({"success": False, "error": msg}), 400
+
+
+@app.route("/logout")
+def logout():
+    session.clear()
+    return redirect(url_for("login_page"))
+
+
+@app.route("/inspect_mapping", methods=["POST"])
+def inspect_mapping():
+    """
+    Analyzes an Excel workbook against the uploaded (or default) master Demo PDF template.
+    Returns detected template details, mapped columns, and warnings.
+    """
+    if not session.get("authenticated"):
+        return jsonify({"error": "Authentication required. Please log in."}), 401
+
+    excel_file = request.files.get("excel_file")
+    template_file = request.files.get("template_pdf")
+
+    if not excel_file or excel_file.filename == "":
+        return jsonify({"error": "Please upload an Excel file."}), 400
+
+    if not _allowed_file(excel_file.filename, config.ALLOWED_EXCEL_EXTENSIONS):
+        return jsonify({"error": "Consumer data must be a .xlsx or .xls file."}), 400
+
+    job_id = uuid.uuid4().hex[:10]
+    temp_dir = os.path.join(config.UPLOAD_FOLDER, f"temp_{job_id}")
+    os.makedirs(temp_dir, exist_ok=True)
+
+    excel_path = os.path.join(temp_dir, "data.xlsx")
+    excel_file.save(excel_path)
+
+    if template_file and template_file.filename != "" and _allowed_file(template_file.filename, config.ALLOWED_PDF_EXTENSIONS):
+        template_path = os.path.join(temp_dir, "template.pdf")
+        template_file.save(template_path)
+    else:
+        template_path = DEFAULT_MASTER_TEMPLATE
+
+    try:
+        ts = template_detector.detect_template_structure(template_path)
+        if template_file and template_file.filename != "":
+            ts.template_name = template_file.filename
+        report = mapping_engine.analyze_mapping(excel_path, ts)
+
+        return jsonify({
+            "template_name": ts.template_name,
+            "layout_type": ts.layout_type,
+            "page_count": ts.page_count,
+            "total_template_fields": len(ts.fields),
+            "total_records": report.total_records,
+            "mapped_fields_count": len(report.mapped_fields),
+            "mapped_fields": report.mapped_fields,
+            "unmapped_excel_columns": report.unmapped_excel_columns,
+            "unmapped_pdf_variables": report.unmapped_pdf_variables,
+            "warnings": report.warnings,
+            "errors": report.errors,
+            "is_valid": report.is_valid,
+        })
+    except Exception as exc:
+        return jsonify({"error": f"Error analyzing template and mapping: {exc}"}), 500
+
+
+@app.route("/preview", methods=["POST"])
+def preview():
+    """
+    Generates a preview PDF for the first consumer record in the uploaded Excel file.
+    """
+    if not session.get("authenticated"):
+        return jsonify({"error": "Authentication required. Please log in."}), 401
+
+    excel_file = request.files.get("excel_file")
+    template_file = request.files.get("template_pdf")
+
+    if not excel_file or excel_file.filename == "":
+        return jsonify({"error": "Please upload an Excel file."}), 400
+
+    if not _allowed_file(excel_file.filename, config.ALLOWED_EXCEL_EXTENSIONS):
+        return jsonify({"error": "Consumer data must be a .xlsx or .xls file."}), 400
+
+    job_id = uuid.uuid4().hex[:10]
+    preview_dir = os.path.join(config.OUTPUT_FOLDER, f"preview_{job_id}")
+    os.makedirs(preview_dir, exist_ok=True)
+
+    excel_path = os.path.join(preview_dir, "data.xlsx")
+    excel_file.save(excel_path)
+
+    if template_file and template_file.filename != "" and _allowed_file(template_file.filename, config.ALLOWED_PDF_EXTENSIONS):
+        template_path = os.path.join(preview_dir, "template.pdf")
+        template_file.save(template_path)
+    else:
+        template_path = DEFAULT_MASTER_TEMPLATE
+
+    try:
+        consumers = excel_reader.read_consumers(excel_path)
+        if not consumers:
+            return jsonify({"error": "No usable rows found in the Excel file."}), 400
+
+        consumer = consumers[0]
+        bill = billing_engine.compute_bill(consumer)
+        history = excel_reader.build_consumption_history(consumers)
+
+        ts = template_detector.detect_template_structure(template_path)
+        preview_pdf_path = os.path.join(preview_dir, "Preview_Bill.pdf")
+
+        pdf_generator.generate_bill_pdf(
+            template_path, consumer, bill, preview_pdf_path,
+            consumption_history=history, template_structure=ts
+        )
+
+        return send_file(
+            preview_pdf_path,
+            mimetype="application/pdf",
+            as_attachment=False,
+            download_name="Preview_Bill.pdf",
+        )
+    except Exception as exc:
+        return jsonify({"error": f"Failed to generate preview: {exc}"}), 500
 
 
 @app.route("/generate", methods=["POST"])
 def generate():
+    if not session.get("authenticated"):
+        return jsonify({"error": "Authentication required. Please log in."}), 401
+
     template_file = request.files.get("template_pdf")
     excel_file = request.files.get("excel_file")
 
-    if not template_file or template_file.filename == "":
-        return jsonify({"error": "Please upload a template PDF."}), 400
     if not excel_file or excel_file.filename == "":
         return jsonify({"error": "Please upload an Excel file."}), 400
 
-    if not _allowed_file(template_file.filename, config.ALLOWED_PDF_EXTENSIONS):
-        return jsonify({"error": "Template must be a .pdf file."}), 400
     if not _allowed_file(excel_file.filename, config.ALLOWED_EXCEL_EXTENSIONS):
         return jsonify({"error": "Consumer data must be a .xlsx or .xls file."}), 400
 
@@ -55,10 +224,35 @@ def generate():
     os.makedirs(job_upload_dir, exist_ok=True)
     os.makedirs(job_output_dir, exist_ok=True)
 
-    template_path = os.path.join(job_upload_dir, "template.pdf")
     excel_path = os.path.join(job_upload_dir, "data.xlsx")
-    template_file.save(template_path)
     excel_file.save(excel_path)
+
+    # Use uploaded template if provided; otherwise use DEMONEWPDF.pdf master template
+    if template_file and template_file.filename != "":
+        if not _allowed_file(template_file.filename, config.ALLOWED_PDF_EXTENSIONS):
+            return jsonify({"error": "Template must be a .pdf file."}), 400
+        template_path = os.path.join(job_upload_dir, "template.pdf")
+        template_file.save(template_path)
+    else:
+        template_path = DEFAULT_MASTER_TEMPLATE
+
+    template_display_name = template_file.filename if (template_file and template_file.filename != "") else os.path.basename(DEFAULT_MASTER_TEMPLATE)
+
+    # 1. Detect template structure & fields dynamically
+    try:
+        template_structure = template_detector.detect_template_structure(template_path)
+        template_structure.template_name = template_display_name
+    except Exception as exc:
+        return jsonify({"error": f"Could not analyze template structure: {exc}"}), 400
+
+    # 2. Check mapping & produce warnings
+    try:
+        mapping_report = mapping_engine.analyze_mapping(excel_path, template_structure)
+    except Exception as exc:
+        return jsonify({"error": f"Could not analyze column mappings: {exc}"}), 400
+
+    if not mapping_report.is_valid:
+        return jsonify({"error": "Invalid Excel data", "details": mapping_report.errors}), 400
 
     try:
         consumers = excel_reader.read_consumers(excel_path)
@@ -67,16 +261,24 @@ def generate():
 
     if not consumers:
         return jsonify({"error": "No usable rows found in the Excel file."}), 400
-        
+
     consumption_history = excel_reader.build_consumption_history(consumers)
+
+    month_counts = {}
+    for consumer in consumers:
+        month_tag = extract_billing_month_tag(consumer)
+        if month_tag:
+            month_counts[month_tag] = month_counts.get(month_tag, 0) + 1
 
     generated_files = []
     errors = []
     previous_total = None
     previous_due_date = None
+    used_filenames = set()
+
     for index, consumer in enumerate(consumers, start=1):
         try:
-            if previous_total is not None:
+            if previous_total is not None and consumer.get("previous_payment") is None:
                 consumer["previous_payment"] = previous_total
                 consumer["previous_payment_date"] = previous_due_date
 
@@ -84,19 +286,26 @@ def generate():
 
             previous_total = bill.total_amount_due
             previous_due_date = consumer.get("due_date")
-            # Prefer Customer_ID; fall back to the consumer's name when the
-            # sheet doesn't have an ID column (e.g. a contact-list-style
-            # sheet with only Name/Address/Email), so the file is still
-            # saved under something recognizable instead of just "row_N".
-            filename_source = consumer.get("customer_id") or consumer.get("consumer_name")
-            customer_id = safe_customer_id(filename_source, index)
-            billing_month_tag = str(consumer.get("billing_month") or "").strip().replace(" ", "_").replace("/", "-")
-            output_filename = f"{billing_month_tag}.pdf" if billing_month_tag else f"Invoice_{customer_id}_{index}.pdf"  
+
+            output_filename = build_bill_filename(
+                consumer,
+                index,
+                total_consumers=len(consumers),
+                month_counts=month_counts,
+                used_filenames=used_filenames,
+            )
             output_path = os.path.join(job_output_dir, output_filename)
-            pdf_generator.generate_bill_pdf(template_path, consumer, bill, output_path, consumption_history=consumption_history)
+
+            pdf_generator.generate_bill_pdf(
+                template_path, consumer, bill, output_path,
+                consumption_history=consumption_history,
+                template_structure=template_structure,
+            )
             generated_files.append(output_filename)
         except Exception as exc:
-            errors.append(f"Row {index} ({consumer.get('consumer_name', 'unknown')}): {exc}")
+            import traceback
+            tb = traceback.format_exc()
+            errors.append(f"Row {index} ERROR:\n{tb}")
 
     if not generated_files:
         return jsonify({"error": "No PDFs could be generated.", "details": errors}), 500
@@ -111,8 +320,12 @@ def generate():
         download_name="Generated_Bills.zip",
     )
     response.headers["X-Generated-Count"] = str(len(generated_files))
+    response.headers["X-Template-Name"] = template_structure.template_name
+    if mapping_report.warnings:
+        response.headers["X-Mapping-Warnings"] = str(len(mapping_report.warnings))
     if errors:
         response.headers["X-Generation-Errors"] = str(len(errors))
+    response.headers["Access-Control-Expose-Headers"] = "X-Generated-Count, X-Template-Name, X-Mapping-Warnings, X-Generation-Errors"
     return response
 
 

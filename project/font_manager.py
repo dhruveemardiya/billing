@@ -14,7 +14,9 @@ from fontTools.pens.ttGlyphPen import TTGlyphPen
 from fontTools.agl import AGL2UV
 
 _FONT_CACHE_DIR = os.path.join(os.path.dirname(__file__), "static", "extracted_fonts")
+_BUNDLED_FONTS_DIR = os.path.join(os.path.dirname(__file__), "static", "bundled_fonts")
 _registered_for = set()
+_registered_cache = {}
 
 
 def _template_hash(template_path: str) -> str:
@@ -29,25 +31,40 @@ def _extract_cff_fonts(template_path: str) -> dict:
     found = {}
     for page in reader.pages:
         resources = page.get("/Resources")
-        if not resources or "/Font" not in resources:
+        if hasattr(resources, "get_object"):
+            resources = resources.get_object()
+        if not resources or not isinstance(resources, dict):
             continue
-        for _key, font_ref in resources["/Font"].items():
-            font_obj = font_ref.get_object()
+        fonts = resources.get("/Font")
+        if hasattr(fonts, "get_object"):
+            fonts = fonts.get_object()
+        if not fonts or not hasattr(fonts, "items"):
+            continue
+        for _key, font_ref in fonts.items():
+            font_obj = font_ref.get_object() if hasattr(font_ref, "get_object") else font_ref
+            if not isinstance(font_obj, dict):
+                continue
             base_font = str(font_obj.get("/BaseFont", "")).lstrip("/")
             ps_name = base_font.split("+")[-1]
             descriptor = font_obj.get("/FontDescriptor")
             if not descriptor:
                 descendants = font_obj.get("/DescendantFonts")
                 if descendants:
-                    descriptor = descendants[0].get_object().get("/FontDescriptor")
+                    desc_first = descendants[0].get_object() if hasattr(descendants[0], "get_object") else descendants[0]
+                    if isinstance(desc_first, dict):
+                        descriptor = desc_first.get("/FontDescriptor")
             if not descriptor:
                 continue
-            descriptor = descriptor.get_object()
+            descriptor = descriptor.get_object() if hasattr(descriptor, "get_object") else descriptor
+            if not isinstance(descriptor, dict):
+                continue
             if "/FontFile3" in descriptor:
-                stream = descriptor["/FontFile3"].get_object()
-                if stream.get("/Subtype") in ("/Type1C", "/CIDFontType0C"):
-                    data = stream.get_data()
-                    if ps_name not in found or len(data) > len(found[ps_name]):
+                stream = descriptor["/FontFile3"]
+                if hasattr(stream, "get_object"):
+                    stream = stream.get_object()
+                if hasattr(stream, "get") and stream.get("/Subtype") in ("/Type1C", "/CIDFontType0C"):
+                    data = stream.get_data() if hasattr(stream, "get_data") else None
+                    if data and (ps_name not in found or len(data) > len(found[ps_name])):
                         found[ps_name] = data
     return found
 
@@ -109,10 +126,19 @@ def _extract_pdf_widths(template_path: str) -> dict:
 
     for page in reader.pages:
         resources = page.get("/Resources")
-        if not resources or "/Font" not in resources:
+        if hasattr(resources, "get_object"):
+            resources = resources.get_object()
+        if not resources or not isinstance(resources, dict):
             continue
-        for _key, font_ref in resources["/Font"].items():
-            font_obj = font_ref.get_object()
+        fonts = resources.get("/Font")
+        if hasattr(fonts, "get_object"):
+            fonts = fonts.get_object()
+        if not fonts or not hasattr(fonts, "items"):
+            continue
+        for _key, font_ref in fonts.items():
+            font_obj = font_ref.get_object() if hasattr(font_ref, "get_object") else font_ref
+            if not isinstance(font_obj, dict):
+                continue
             base_font = str(font_obj.get("/BaseFont", "")).lstrip("/")
             ps_name = base_font.split("+")[-1]
             if ps_name in widths_by_font:
@@ -123,7 +149,9 @@ def _extract_pdf_widths(template_path: str) -> dict:
             if font_obj.get("/Subtype") == "/Type0":
                 descendants = font_obj.get("/DescendantFonts")
                 if descendants:
-                    df = descendants[0].get_object()
+                    df = descendants[0].get_object() if hasattr(descendants[0], "get_object") else descendants[0]
+                    if not isinstance(df, dict):
+                        continue
                     default_w = df.get("/DW", 1000)
                     w_array = df.get("/W")
                     if w_array:
@@ -319,20 +347,35 @@ def _extract_symbol_ttf_fonts(template_path: str) -> dict:
     found = {}
     for page in reader.pages:
         resources = page.get("/Resources")
-        if not resources or "/Font" not in resources:
+        if hasattr(resources, "get_object"):
+            resources = resources.get_object()
+        if not resources or not isinstance(resources, dict):
             continue
-        for _key, font_ref in resources["/Font"].items():
-            font_obj = font_ref.get_object()
+        fonts = resources.get("/Font")
+        if hasattr(fonts, "get_object"):
+            fonts = fonts.get_object()
+        if not fonts or not hasattr(fonts, "items"):
+            continue
+        for _key, font_ref in fonts.items():
+            font_obj = font_ref.get_object() if hasattr(font_ref, "get_object") else font_ref
+            if not isinstance(font_obj, dict):
+                continue
             base_font = str(font_obj.get("/BaseFont", "")).lstrip("/")
             ps_name = base_font.split("+")[-1]
             descriptor = font_obj.get("/FontDescriptor")
             if not descriptor:
                 continue
-            descriptor = descriptor.get_object()
+            descriptor = descriptor.get_object() if hasattr(descriptor, "get_object") else descriptor
+            if not isinstance(descriptor, dict):
+                continue
             if "/FontFile2" in descriptor:
-                data = descriptor["/FontFile2"].get_object().get_data()
-                if ps_name not in found or len(data) > len(found[ps_name]):
-                    found[ps_name] = data
+                file2 = descriptor["/FontFile2"]
+                if hasattr(file2, "get_object"):
+                    file2 = file2.get_object()
+                if hasattr(file2, "get_data"):
+                    data = file2.get_data()
+                    if ps_name not in found or len(data) > len(found[ps_name]):
+                        found[ps_name] = data
     return found
 
 
@@ -386,11 +429,34 @@ def _repair_symbol_ttf_bytes(raw_ttf_bytes: bytes) -> bytes:
 
 def ensure_template_fonts_registered(template_path: str) -> dict:
     key = _template_hash(template_path)
+    if key in _registered_cache:
+        return _registered_cache[key]
     os.makedirs(_FONT_CACHE_DIR, exist_ok=True)
-    cff_fonts = _extract_cff_fonts(template_path)
-    pdf_widths = _extract_pdf_widths(template_path)
+    try:
+        cff_fonts = _extract_cff_fonts(template_path)
+    except Exception as e:
+        print("extract_cff_fonts error:", e)
+        cff_fonts = {}
+    try:
+        pdf_widths = _extract_pdf_widths(template_path)
+    except Exception as e:
+        print("extract_pdf_widths error:", e)
+        pdf_widths = {}
     registered = {}
+    if os.path.exists(_BUNDLED_FONTS_DIR):
+        for font_file in os.listdir(_BUNDLED_FONTS_DIR):
+            if font_file.endswith(".ttf") and not font_file.endswith("-Variable.ttf"):
+                f_name = font_file[:-4]
+                f_path = os.path.join(_BUNDLED_FONTS_DIR, font_file)
+                try:
+                    pdfmetrics.registerFont(TTFont(f_name, f_path))
+                    registered[f_name] = True
+                except Exception as e:
+                    print("bundled font register fail:", f_name, e)
+
     for ps_name, cff_bytes in cff_fonts.items():
+        if ps_name in registered:
+            continue
         ttf_path = os.path.join(_FONT_CACHE_DIR, f"{key}_{ps_name}.ttf")
         if not os.path.exists(ttf_path):
             try:
@@ -407,7 +473,12 @@ def ensure_template_fonts_registered(template_path: str) -> dict:
             print("register fail", ps_name, e)
             continue
 
-    symbol_fonts = _extract_symbol_ttf_fonts(template_path)
+    try:
+        symbol_fonts = _extract_symbol_ttf_fonts(template_path)
+    except Exception as e:
+        print("extract_symbol_ttf_fonts error:", e)
+        symbol_fonts = {}
+
     for ps_name, raw_bytes in symbol_fonts.items():
         ttf_path = os.path.join(_FONT_CACHE_DIR, f"{key}_{ps_name}_symbol.ttf")
         if not os.path.exists(ttf_path):
@@ -426,4 +497,5 @@ def ensure_template_fonts_registered(template_path: str) -> dict:
             continue
 
     _registered_for.add(key)
+    _registered_cache[key] = registered
     return registered

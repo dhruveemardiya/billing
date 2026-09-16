@@ -66,14 +66,22 @@ COLUMN_ALIASES: Dict[str, List[str]] = {
     "previous_payment_date": ["Previous_Payment_Date", "Previous Payment Date"],
     "security_deposit": ["Security_Deposit", "Security Deposit Held"],
     "additional_security": ["Additional_Security", "Additional Security Deposit"],
-    "area": ["Area"],
+    "area": ["Area", "Zone", "Circle", "Division"],
     "substation": ["Substation", "Sub-Station", "Sub_Station"],
-    "legacy_no": ["Legacy_No", "Legacy No"],
+    "legacy_no": ["Legacy_No", "Legacy No", "Distribution_Code"],
     "billing_mode": ["Billing_Mode", "Billing Mode"],
     "group_no": ["Group_No", "Group No"],
+    "distribution_date": ["Distribution_Date", "Distribution Date", "Bill_Date"],
+    "energy_charges": ["Energy_Charges", "Energy Charges"],
+    "fixed_charges": ["Fixed_Charges", "Fixed Charges"],
+    "fppca_charges": ["FPPCA_Charges", "FPPCA Charges", "FPPAS_Charges", "FPPAS Charges"],
+    "govt_duty": ["Govt_Duty_Charges", "Govt Duty", "Govt_Duty", "Government_Duty", "Government Duty", "Govt_Duty_Charge"],
+    "total_amount": ["Total_Amount", "Total Amount", "Bill_Amount"],
+    "amount_after_due": ["Amount_After_Due", "Amount After Due", "Net_Amount_After_Due"],
+    "delayed_payment_charges": ["Delayed_Payment_Charges", "Delayed Payment Charges", "Delay_Surcharge", "Delay Surcharge"],
 }
 
-# These 5 fields must come from the uploaded sheet itself. If a row doesn't
+# These fields must come from the uploaded sheet itself. If a row doesn't
 # have them, they stay blank in the generated PDF - they are never padded
 # with sample/default data.
 PROTECTED_BLANK_FIELDS = {
@@ -82,6 +90,13 @@ PROTECTED_BLANK_FIELDS = {
     "email",
     "mobile_no",
     "address",
+    "energy_charges",
+    "fixed_charges",
+    "fppca_charges",
+    "govt_duty",
+    "total_amount",
+    "amount_after_due",
+    "delayed_payment_charges",
 }
 
 # Fallback value for "units" if it can neither be read from the sheet nor
@@ -191,6 +206,20 @@ def read_consumers(excel_path: str) -> List[Dict]:
 
         if _is_blank(consumer.get("units")):
             consumer["units"] = DEFAULT_UNITS
+
+        numeric_fields = [
+            "units", "start_reading", "end_reading", "multiplier", "arrear",
+            "other_debit_credit", "prompt_rebate", "advance_rebate", "previous_payment",
+            "security_deposit", "additional_security", "energy_charges", "fixed_charges",
+            "fppca_charges", "govt_duty", "total_amount", "amount_after_due",
+            "delayed_payment_charges"
+        ]
+        for nf in numeric_fields:
+            if consumer.get(nf) is not None and not _is_blank(consumer.get(nf)):
+                try:
+                    consumer[nf] = float(str(consumer[nf]).replace(",", "").strip())
+                except (ValueError, TypeError):
+                    pass
 
         consumers.append(consumer)
 

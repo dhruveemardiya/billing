@@ -45,6 +45,12 @@ DEFAULT_FIXED_CHARGE_RATE_PER_KW = 10.00
 FPPCA_PERCENT = 11.08
 
 # --------------------------------------------------------------------------
+# Government Electricity Duty
+# --------------------------------------------------------------------------
+# Applied on (Fixed Charges + Energy Charges + FPPCA Charges)
+GOVT_DUTY_PERCENT = 15.0
+
+# --------------------------------------------------------------------------
 # Delay Payment Surcharge
 # --------------------------------------------------------------------------
 # Applied on Total Amount Due, per month overdue. This project applies a

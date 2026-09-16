@@ -1,489 +1,1259 @@
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Electricity Bill Generator</title>
-<style>
-  /* ---------------------------------------------------------
-     DESIGN TOKENS
-     Theme: utility/electricity — deep circuit-navy + live-wire
-     amber. Avoids the generic cream/terracotta and near-black/
-     neon AI-defaults; instead borrows its palette from a meter
-     dial and a voltage trace.
-  --------------------------------------------------------- */
-  :root {
-    --navy-900: #7a2e0a;   /* deep ink, now a burnt-orange-brown for headings */
-    --navy-700: #9a3d12;   /* secondary ink */
-    --navy-500: #8a6a5c;   /* muted text, warm gray-brown */
-    --slate-100: #fff6ee;  /* page background, warm white */
-    --slate-200: #ffe1c2;  /* borders, soft orange */
-    --white: #ffffff;
-    --amber-500: #ff7a1a;  /* primary orange accent */
-    --amber-600: #e8630a;
-    --amber-glow: #ffb877;
-    --success-bg: #eafaf1;
-    --success-ink: #1e8449;
-    --success-border: #b7e6c9;
-    --error-bg: #fdecea;
-    --error-ink: #c0392b;
-    --error-border: #f3c6c0;
-    --radius-lg: 16px;
-    --radius-md: 12px;
-    --radius-sm: 8px;
-    --shadow-card: 0 1px 2px rgba(122,46,10,0.05), 0 12px 32px rgba(122,46,10,0.08);
-    --shadow-hover: 0 18px 40px rgba(122,46,10,0.14);
-    --font-ui: "Inter", "Segoe UI", -apple-system, BlinkMacSystemFont, Roboto, Arial, sans-serif;
-  }
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=5.0">
+  <title>Electricity Bill Generator - Utility Dashboard</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link
+    href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=JetBrains+Mono:wght@500;600;700&display=swap"
+    rel="stylesheet">
+  <style>
+    :root {
+      /* Pure Electricity Utility Green Palette */
+      --primary-green: #059669;
+      --primary-green-hover: #047857;
+      --electric-mint: #10b981;
+      --electric-mint-subtle: #ecfdf5;
+      --electric-border: rgba(16, 185, 129, 0.24);
+      --electric-glow: rgba(16, 185, 129, 0.16);
 
-  * { box-sizing: border-box; }
+      --text-dark-green: #064e3b;
+      --text-medium-green: #166534;
+      --text-subtle: #2d6a4f;
+      --text-muted: #52796f;
 
-  html, body {
-    height: 100%;
-  }
+      --card-bg: rgba(255, 255, 255, 0.96);
+      --card-border: rgba(16, 185, 129, 0.22);
+      --card-shadow: 0 20px 40px -12px rgba(5, 150, 105, 0.12), 0 4px 18px rgba(5, 150, 105, 0.05);
 
-  body {
-    font-family: var(--font-ui);
-    background: var(--slate-100);
-    /* Faint circuit-grid texture — signature background detail,
-       evokes a utility schematic without any imagery/dependency */
-    background-image:
-      radial-gradient(circle at 1px 1px, rgba(11,23,48,0.05) 1px, transparent 0);
-    background-size: 26px 26px;
-    color: var(--navy-900);
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    min-height: 100vh;
-    margin: 0;
-    padding: 32px 16px;
-  }
+      --input-bg: #f8fcf9;
+      --input-border: #d1fae5;
 
-  /* Centered page container with a sensible max width */
-  .page {
-    width: 100%;
-    max-width: 480px;
-    animation: fade-in 0.5s ease both;
-  }
+      --warning-bg: #fffbeb;
+      --warning-text: #92400e;
+      --warning-border: #fde68a;
 
-  @keyframes fade-in {
-    from { opacity: 0; transform: translateY(8px); }
-    to   { opacity: 1; transform: translateY(0); }
-  }
+      --danger-bg: #fef2f2;
+      --danger-text: #991b1b;
+      --danger-border: #fecaca;
 
-  /* Brand strip above the card — small signature: a live "voltage"
-     trace line that gives the utility identity without a hero image */
-  .brand {
-    display: flex;
-    align-items: center;
-    gap: 10px;
-    margin-bottom: 18px;
-    padding-left: 4px;
-  }
-  .brand-mark {
-    width: 34px;
-    height: 34px;
-    border-radius: 9px;
-    background: linear-gradient(135deg, var(--navy-900), var(--navy-700));
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    flex-shrink: 0;
-    box-shadow: 0 4px 10px rgba(11,23,48,0.25);
-  }
-  .brand-mark svg { width: 18px; height: 18px; }
-  .brand-name {
-    font-size: 13px;
-    font-weight: 700;
-    letter-spacing: 0.02em;
-    color: var(--navy-700);
-    text-transform: uppercase;
-  }
+      --radius-lg: 20px;
+      --radius-md: 14px;
+      --radius-sm: 8px;
 
-  .card {
-    background: var(--white);
-    border: 1px solid var(--slate-200);
-    border-radius: var(--radius-lg);
-    padding: 36px 36px 32px;
-    box-shadow: var(--shadow-card);
-  }
+      --font-sans: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      --font-mono: 'JetBrains Mono', monospace;
+    }
 
-  @media (max-width: 480px) {
-    .card { padding: 28px 22px 24px; }
-  }
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
 
-  h1 {
-    font-size: 21px;
-    font-weight: 700;
-    letter-spacing: -0.01em;
-    margin: 0 0 6px;
-    color: var(--navy-900);
-  }
+    html,
+    body {
+      width: 100%;
+      min-height: 100vh;
+      font-family: var(--font-sans);
+      background-color: #f7fdf9;
+      color: var(--text-dark-green);
+      overflow-x: hidden;
+      -webkit-font-smoothing: antialiased;
+    }
 
-  p.sub {
-    color: var(--navy-500);
-    font-size: 13.5px;
-    line-height: 1.5;
-    margin: 0 0 28px;
-  }
+    /* Full-Screen Electricity Gradient Page */
+    .dashboard-page {
+      position: relative;
+      min-height: 100vh;
+      width: 100%;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      padding: 24px 20px 60px 20px;
+      background: radial-gradient(ellipse at 50% 5%, #ffffff 0%, #f4fbf7 35%, #e6f6ec 80%, #dff2e6 100%);
+    }
 
-  /* Section heading for visual hierarchy above the two uploads */
-  .section-label {
-    font-size: 11px;
-    font-weight: 700;
-    text-transform: uppercase;
-    letter-spacing: 0.06em;
-    color: var(--navy-500);
-    margin: 0 0 14px;
-    display: flex;
-    align-items: center;
-    gap: 8px;
-  }
-  .section-label::after {
-    content: "";
-    flex: 1;
-    height: 1px;
-    background: var(--slate-200);
-  }
+    /* Faint Background Energy Grid */
+    .bg-energy-grid {
+      position: absolute;
+      top: 0;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      pointer-events: none;
+      z-index: 1;
+      background-image:
+        radial-gradient(rgba(16, 185, 129, 0.12) 1.2px, transparent 1.2px),
+        linear-gradient(to right, rgba(16, 185, 129, 0.025) 1px, transparent 1px),
+        linear-gradient(to bottom, rgba(16, 185, 129, 0.025) 1px, transparent 1px);
+      background-size: 26px 26px, 104px 104px, 104px 104px;
+      mask-image: radial-gradient(ellipse at 50% 40%, rgba(0, 0, 0, 0.95) 0%, rgba(0, 0, 0, 0.4) 80%, transparent 100%);
+    }
 
-  form { margin: 0; }
+    /* Vector Electricity Canvas in Background */
+    .bg-canvas {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      pointer-events: none;
+      z-index: 1;
+      opacity: 0.55;
+    }
 
-  .field { margin-bottom: 20px; }
+    /* Ambient Soft Mint Energy Glows */
+    .ambient-glow-top {
+      position: absolute;
+      top: -50px;
+      left: 50%;
+      transform: translateX(-50%);
+      width: min(800px, 95vw);
+      height: 350px;
+      background: radial-gradient(circle, rgba(16, 185, 129, 0.12) 0%, rgba(240, 253, 244, 0) 70%);
+      pointer-events: none;
+      z-index: 1;
+    }
 
-  label.field-label {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    font-size: 13.5px;
-    font-weight: 600;
-    color: var(--navy-900);
-    margin-bottom: 8px;
-  }
-  label.field-label svg {
-    width: 16px;
-    height: 16px;
-    color: var(--amber-600);
-    flex-shrink: 0;
-  }
+    /* Main Container */
+    .container {
+      position: relative;
+      z-index: 10;
+      width: 100%;
+      max-width: 980px;
+    }
 
-  /* Upload dropzone — replaces the plain file input visually while
-     keeping the underlying <input type="file"> fully functional
-     and accessible (input remains focusable + keyboard-operable) */
-  .dropzone {
-    position: relative;
-    border: 1.5px dashed var(--slate-200);
-    border-radius: var(--radius-md);
-    background: var(--slate-100);
-    padding: 18px 16px;
-    display: flex;
-    align-items: center;
-    gap: 12px;
-    transition: border-color 0.18s ease, background 0.18s ease, box-shadow 0.18s ease;
-    cursor: pointer;
-  }
-  .dropzone:hover {
-    border-color: var(--amber-500);
-    background: #fff8ec;
-  }
-  .dropzone.has-file {
-    border-style: solid;
-    border-color: var(--success-border);
-    background: var(--success-bg);
-  }
-  .dropzone.drag-active {
-    border-color: var(--amber-500);
-    background: #fff3dd;
-    box-shadow: 0 0 0 4px rgba(245,165,36,0.15);
-  }
-  .dropzone input[type="file"] {
-    position: absolute;
-    inset: 0;
-    width: 100%;
-    height: 100%;
-    opacity: 0;
-    cursor: pointer;
-    margin: 0;
-  }
-  .dropzone input[type="file"]:focus-visible ~ .dz-icon {
-    outline: 2px solid var(--amber-600);
-    outline-offset: 2px;
-    border-radius: 8px;
-  }
-  .dz-icon {
-    width: 38px;
-    height: 38px;
-    border-radius: 10px;
-    background: var(--white);
-    border: 1px solid var(--slate-200);
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    flex-shrink: 0;
-  }
-  .dz-icon svg { width: 18px; height: 18px; color: var(--navy-500); }
-  .dropzone.has-file .dz-icon { border-color: var(--success-border); }
-  .dropzone.has-file .dz-icon svg { color: var(--success-ink); }
+    /* Single Card Integrated Header */
+    .panel-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 16px;
+      margin-bottom: 20px;
+    }
 
-  .dz-text { min-width: 0; }
-  .dz-title {
-    font-size: 13px;
-    font-weight: 600;
-    color: var(--navy-900);
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
-  }
-  .dz-hint {
-    font-size: 12px;
-    color: var(--navy-500);
-    margin-top: 2px;
-  }
-  .dropzone.has-file .dz-hint { color: var(--success-ink); }
+    .panel-divider {
+      height: 1px;
+      background: linear-gradient(90deg, rgba(16, 185, 129, 0.05) 0%, rgba(16, 185, 129, 0.28) 35%, rgba(16, 185, 129, 0.28) 65%, rgba(16, 185, 129, 0.05) 100%);
+      margin: 0 0 24px 0;
+      border: none;
+    }
 
-  /* Generate button — gradient with a subtle "charge" hover effect */
-  button#generate-btn {
-    width: 100%;
-    height: 48px;
-    padding: 0 16px;
-    background: linear-gradient(135deg, var(--amber-500), var(--amber-600));
-    color: var(--navy-900);
-    border: none;
-    border-radius: var(--radius-md);
-    font-size: 14.5px;
-    font-family: inherit;
-    font-weight: 700;
-    letter-spacing: 0.01em;
-    cursor: pointer;
-    margin-top: 8px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    gap: 10px;
-    box-shadow: 0 6px 16px rgba(245,165,36,0.35);
-    transition: transform 0.15s ease, box-shadow 0.15s ease, background 0.15s ease;
-  }
-  button#generate-btn:hover:not(:disabled) {
-    transform: translateY(-1px);
-    box-shadow: 0 10px 22px rgba(245,165,36,0.45);
-  }
-  button#generate-btn:active:not(:disabled) {
-    transform: translateY(0);
-  }
-  button#generate-btn:focus-visible {
-    outline: 2px solid var(--navy-900);
-    outline-offset: 2px;
-  }
-  button#generate-btn:disabled {
-    background: #f0d9a8;
-    color: #8a7444;
-    cursor: not-allowed;
-    box-shadow: none;
-  }
+    .nav-brand {
+      display: flex;
+      align-items: center;
+      gap: 14px;
+    }
 
-  /* Loading spinner shown inside the button while generating */
-  .spinner {
-    width: 16px;
-    height: 16px;
-    border-radius: 50%;
-    border: 2px solid rgba(11,23,48,0.25);
-    border-top-color: var(--navy-900);
-    animation: spin 0.7s linear infinite;
-    flex-shrink: 0;
-  }
-  @keyframes spin { to { transform: rotate(360deg); } }
+    .logo-badge {
+      width: 48px;
+      height: 48px;
+      background: linear-gradient(135deg, #ecfdf5 0%, #d1fae5 100%);
+      border: 1.5px solid #a7f3d0;
+      border-radius: 14px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: var(--primary-green);
+      box-shadow: 0 6px 16px rgba(5, 150, 105, 0.16), 0 0 0 3px rgba(236, 253, 245, 0.85);
+      flex-shrink: 0;
+    }
 
-  /* Status / alert area */
-  #status {
-    margin-top: 18px;
-    font-size: 13.5px;
-    min-height: 0;
-  }
-  #status:empty { margin-top: 0; }
-  #status .alert {
-    display: flex;
-    align-items: flex-start;
-    gap: 10px;
-    padding: 12px 14px;
-    border-radius: var(--radius-sm);
-    border: 1px solid transparent;
-    line-height: 1.45;
-    animation: fade-in 0.25s ease both;
-  }
-  #status .alert svg { width: 17px; height: 17px; flex-shrink: 0; margin-top: 1px; }
-  #status.success .alert {
-    background: var(--success-bg);
-    color: var(--success-ink);
-    border-color: var(--success-border);
-  }
-  #status.error .alert {
-    background: var(--error-bg);
-    color: var(--error-ink);
-    border-color: var(--error-border);
-  }
+    .nav-title h1 {
+      font-size: 1.25rem;
+      font-weight: 800;
+      color: var(--text-dark-green);
+      letter-spacing: -0.025em;
+      line-height: 1.2;
+    }
 
-  /* Reduced motion respect */
-  @media (prefers-reduced-motion: reduce) {
-    .page, #status .alert { animation: none; }
-    button#generate-btn, .dropzone { transition: none; }
-    .spinner { animation: spin 1s linear infinite; }
-  }
-</style>
+    .nav-title p {
+      font-size: 0.8rem;
+      font-weight: 600;
+      color: var(--primary-green);
+      letter-spacing: 0.015em;
+      margin-top: 2px;
+    }
+
+    .nav-controls {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      flex-wrap: wrap;
+      justify-content: flex-end;
+    }
+
+    .status-chip {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 6px 12px;
+      border-radius: 9999px;
+      background: var(--electric-mint-subtle);
+      border: 1px solid #bbf7d0;
+      font-size: 0.75rem;
+      font-weight: 700;
+      color: var(--text-dark-green);
+      letter-spacing: 0.02em;
+    }
+
+    .status-dot {
+      width: 7px;
+      height: 7px;
+      background-color: var(--electric-mint);
+      border-radius: 50%;
+      box-shadow: 0 0 8px var(--electric-mint);
+      animation: livePulse 2s infinite;
+    }
+
+    @keyframes livePulse {
+      0% {
+        transform: scale(0.95);
+        opacity: 0.8;
+      }
+
+      50% {
+        transform: scale(1.3);
+        opacity: 1;
+      }
+
+      100% {
+        transform: scale(0.95);
+        opacity: 0.8;
+      }
+    }
+
+    .master-tag {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      background: #ffffff;
+      color: var(--text-medium-green);
+      font-size: 0.75rem;
+      font-weight: 700;
+      padding: 6px 12px;
+      border-radius: 9999px;
+      border: 1.5px solid #d1fae5;
+    }
+
+    .user-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      background: #f8fafc;
+      color: var(--text-subtle);
+      font-size: 0.75rem;
+      font-weight: 700;
+      padding: 6px 12px;
+      border-radius: 9999px;
+      border: 1px solid #e2e8f0;
+    }
+
+    .btn-logout {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 7px 14px;
+      background: #ffffff;
+      border: 1.5px solid #fecaca;
+      border-radius: var(--radius-sm);
+      color: #b91c1c;
+      font-size: 0.78rem;
+      font-weight: 700;
+      text-decoration: none;
+      transition: all 0.2s ease;
+      box-shadow: 0 1px 2px rgba(0, 0, 0, 0.04);
+    }
+
+    .btn-logout:hover {
+      background: #fef2f2;
+      border-color: #ef4444;
+      color: #991b1b;
+      transform: translateY(-1px);
+    }
+
+    /* Main Interactive Card */
+    .dashboard-card {
+      background: var(--card-bg);
+      backdrop-filter: blur(14px);
+      -webkit-backdrop-filter: blur(14px);
+      border: 1.5px solid var(--electric-border);
+      border-radius: var(--radius-lg);
+      box-shadow: var(--card-shadow);
+      padding: 36px 36px 32px;
+    }
+
+    /* Two-Column Upload Zones */
+    .upload-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 20px;
+      margin-bottom: 24px;
+    }
+
+    .field-group {
+      display: flex;
+      flex-direction: column;
+    }
+
+    .field-label {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      font-size: 0.8rem;
+      font-weight: 700;
+      color: var(--text-medium-green);
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+      margin-bottom: 8px;
+    }
+
+    .field-label .label-left {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .field-label svg {
+      color: var(--primary-green);
+    }
+
+    .badge-tag {
+      font-size: 0.68rem;
+      font-weight: 700;
+      padding: 2px 8px;
+      border-radius: 6px;
+      background: var(--electric-mint-subtle);
+      color: var(--text-dark-green);
+      border: 1px solid #bbf7d0;
+      letter-spacing: 0.02em;
+      text-transform: none;
+    }
+
+    .badge-tag.required {
+      background: #fef2f2;
+      color: #991b1b;
+      border-color: #fecaca;
+    }
+
+    /* Premium Mint Dropzone */
+    .dropzone {
+      position: relative;
+      border: 2px dashed #bbf7d0;
+      border-radius: var(--radius-md);
+      padding: 24px 20px;
+      background: #fbfdfc;
+      display: flex;
+      align-items: center;
+      gap: 16px;
+      cursor: pointer;
+      transition: all 0.22s cubic-bezier(0.16, 1, 0.3, 1);
+      min-height: 110px;
+    }
+
+    .dropzone:hover,
+    .dropzone.drag-active {
+      border-color: var(--primary-green);
+      background: var(--electric-mint-subtle);
+      transform: translateY(-1px);
+      box-shadow: 0 8px 20px -6px rgba(5, 150, 105, 0.15);
+    }
+
+    .dropzone.has-file {
+      border-color: var(--primary-green);
+      background: #ecfdf5;
+      border-style: solid;
+      box-shadow: 0 4px 12px rgba(16, 185, 129, 0.1);
+    }
+
+    .dropzone input[type="file"] {
+      position: absolute;
+      inset: 0;
+      opacity: 0;
+      cursor: pointer;
+      width: 100%;
+      height: 100%;
+      z-index: 5;
+    }
+
+    .dz-icon {
+      width: 48px;
+      height: 48px;
+      border-radius: 12px;
+      background: #ffffff;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      flex-shrink: 0;
+      box-shadow: 0 4px 10px rgba(5, 150, 105, 0.08);
+      border: 1.5px solid #d1fae5;
+      color: var(--primary-green);
+      transition: all 0.2s ease;
+    }
+
+    .dropzone:hover .dz-icon {
+      transform: scale(1.06);
+      color: var(--primary-green-hover);
+      border-color: var(--primary-green);
+    }
+
+    .dropzone.has-file .dz-icon {
+      background: linear-gradient(135deg, #10b981 0%, #059669 100%);
+      color: #ffffff;
+      border-color: #059669;
+      box-shadow: 0 6px 16px rgba(5, 150, 105, 0.25);
+    }
+
+    .dz-info {
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+    }
+
+    .dz-name {
+      font-size: 0.95rem;
+      font-weight: 700;
+      color: var(--text-dark-green);
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .dz-hint {
+      font-size: 0.78rem;
+      color: var(--text-muted);
+      margin-top: 4px;
+      line-height: 1.35;
+    }
+
+    /* Dynamic Mapping & Intelligence Panel */
+    .analysis-panel {
+      display: none;
+      margin-bottom: 24px;
+      padding: 20px 22px;
+      border-radius: var(--radius-md);
+      background: #ffffff;
+      border: 1.5px solid var(--electric-border);
+      box-shadow: 0 8px 24px -8px rgba(5, 150, 105, 0.1);
+      animation: fadeIn 0.3s ease;
+    }
+
+    @keyframes fadeIn {
+      from {
+        opacity: 0;
+        transform: translateY(6px);
+      }
+
+      to {
+        opacity: 1;
+        transform: translateY(0);
+      }
+    }
+
+    .analysis-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 16px;
+      padding-bottom: 12px;
+      border-bottom: 1px solid #e6f4ea;
+    }
+
+    .analysis-title {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-size: 0.84rem;
+      font-weight: 800;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      color: var(--text-dark-green);
+    }
+
+    .analysis-title svg {
+      color: var(--primary-green);
+    }
+
+    .stats-grid {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 12px;
+      margin-bottom: 14px;
+    }
+
+    .stat-card {
+      background: #fbfdfc;
+      border: 1px solid #d1fae5;
+      border-radius: var(--radius-sm);
+      padding: 12px 14px;
+      box-shadow: 0 2px 4px rgba(0, 0, 0, 0.02);
+    }
+
+    .stat-card span {
+      font-size: 0.72rem;
+      color: var(--text-muted);
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+      display: block;
+      margin-bottom: 2px;
+    }
+
+    .stat-card strong {
+      font-size: 1.05rem;
+      font-weight: 800;
+      color: var(--text-dark-green);
+      letter-spacing: -0.01em;
+    }
+
+    .warning-box {
+      margin-top: 10px;
+      padding: 12px 14px;
+      background: var(--warning-bg);
+      border: 1px solid var(--warning-border);
+      border-radius: var(--radius-sm);
+      color: var(--warning-text);
+      font-size: 0.82rem;
+      line-height: 1.45;
+      display: flex;
+      align-items: flex-start;
+      gap: 8px;
+    }
+
+    /* Action Buttons */
+    .button-row {
+      display: grid;
+      grid-template-columns: 1fr 2fr;
+      gap: 14px;
+      margin-top: 12px;
+    }
+
+    button {
+      font-family: var(--font-sans);
+      font-size: 0.95rem;
+      font-weight: 700;
+      border-radius: var(--radius-md);
+      border: none;
+      padding: 14px 22px;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 9px;
+      transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+    }
+
+    button:disabled {
+      opacity: 0.55;
+      cursor: not-allowed;
+      transform: none !important;
+      box-shadow: none !important;
+    }
+
+    .btn-preview {
+      background: #ffffff;
+      border: 1.5px solid #d1fae5;
+      color: var(--text-dark-green);
+      box-shadow: 0 2px 6px rgba(0, 0, 0, 0.03);
+    }
+
+    .btn-preview:hover:not(:disabled) {
+      background: var(--electric-mint-subtle);
+      border-color: var(--primary-green);
+      color: var(--primary-green);
+      transform: translateY(-1.5px);
+      box-shadow: 0 6px 16px rgba(16, 185, 129, 0.15);
+    }
+
+    .btn-generate {
+      background: linear-gradient(135deg, #10b981 0%, #059669 100%);
+      color: #ffffff;
+      box-shadow: 0 8px 22px -4px rgba(5, 150, 105, 0.38);
+    }
+
+    .btn-generate:hover:not(:disabled) {
+      background: linear-gradient(135deg, #059669 0%, #047857 100%);
+      box-shadow: 0 12px 28px -4px rgba(5, 150, 105, 0.48);
+      transform: translateY(-1.5px);
+    }
+
+    .btn-generate:active:not(:disabled) {
+      transform: translateY(0);
+    }
+
+    /* Status Notification Alerts */
+    #status {
+      margin-top: 20px;
+    }
+
+    .alert {
+      padding: 16px 18px;
+      border-radius: var(--radius-md);
+      font-size: 0.88rem;
+      font-weight: 600;
+      display: flex;
+      align-items: flex-start;
+      gap: 12px;
+      line-height: 1.45;
+      animation: alertPop 0.25s ease-out;
+    }
+
+    @keyframes alertPop {
+      from {
+        opacity: 0;
+        transform: translateY(-6px);
+      }
+
+      to {
+        opacity: 1;
+        transform: translateY(0);
+      }
+    }
+
+    .alert.success {
+      background: var(--electric-mint-subtle);
+      border: 1.5px solid #a7f3d0;
+      color: var(--text-dark-green);
+      box-shadow: 0 4px 14px rgba(16, 185, 129, 0.1);
+    }
+
+    .alert.success svg {
+      color: var(--primary-green);
+      flex-shrink: 0;
+      margin-top: 1px;
+    }
+
+    .alert.error {
+      background: var(--danger-bg);
+      border: 1.5px solid var(--danger-border);
+      color: var(--danger-text);
+      box-shadow: 0 4px 14px rgba(239, 68, 68, 0.08);
+    }
+
+    .alert.error svg {
+      color: #dc2626;
+      flex-shrink: 0;
+      margin-top: 1px;
+    }
+
+    .spinner {
+      width: 18px;
+      height: 18px;
+      border: 2.2px solid rgba(255, 255, 255, 0.35);
+      border-top-color: #ffffff;
+      border-radius: 50%;
+      animation: spin 0.65s linear infinite;
+    }
+
+    .btn-preview .spinner {
+      border-color: rgba(5, 150, 105, 0.25);
+      border-top-color: var(--primary-green);
+    }
+
+    @keyframes spin {
+      to {
+        transform: rotate(360deg);
+      }
+    }
+
+    /* Preview Modal */
+    .modal-backdrop {
+      display: none;
+      position: fixed;
+      inset: 0;
+      background: rgba(6, 78, 59, 0.45);
+      backdrop-filter: blur(6px);
+      -webkit-backdrop-filter: blur(6px);
+      z-index: 1000;
+      align-items: center;
+      justify-content: center;
+      padding: 24px;
+      animation: modalBackdropFade 0.2s ease;
+    }
+
+    .modal-backdrop.open {
+      display: flex;
+    }
+
+    .modal-window {
+      background: #ffffff;
+      border-radius: var(--radius-lg);
+      border: 1.5px solid var(--electric-border);
+      width: 100%;
+      max-width: 960px;
+      height: 88vh;
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+      box-shadow: 0 25px 60px -15px rgba(5, 150, 105, 0.25);
+    }
+
+    .modal-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 16px 24px;
+      background: #fbfdfc;
+      border-bottom: 1.5px solid #e6f4ea;
+    }
+
+    .modal-header h3 {
+      font-size: 1.05rem;
+      font-weight: 800;
+      color: var(--text-dark-green);
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .modal-close {
+      background: transparent;
+      border: none;
+      cursor: pointer;
+      color: var(--text-muted);
+      padding: 6px;
+      border-radius: 8px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 20px;
+      line-height: 1;
+      transition: all 0.15s ease;
+    }
+
+    .modal-close:hover {
+      color: #ef4444;
+      background: #fef2f2;
+    }
+
+    .modal-body {
+      flex: 1;
+      background: #f1f5f9;
+    }
+
+    .modal-body iframe {
+      width: 100%;
+      height: 100%;
+      border: none;
+    }
+
+    /* Responsive Rules */
+    @media (max-width: 900px) {
+      .upload-grid {
+        grid-template-columns: 1fr;
+        gap: 16px;
+      }
+
+      .panel-header {
+        flex-direction: column;
+        align-items: stretch;
+        gap: 14px;
+        margin-bottom: 18px;
+      }
+
+      .nav-controls {
+        justify-content: flex-start;
+        gap: 8px;
+      }
+    }
+
+    @media (max-width: 600px) {
+      .dashboard-page {
+        padding: 14px 12px 40px 12px;
+      }
+
+      .dashboard-card {
+        padding: 22px 18px;
+        border-radius: 18px;
+      }
+
+      .panel-header {
+        gap: 12px;
+        margin-bottom: 16px;
+      }
+
+      .panel-divider {
+        margin-bottom: 18px;
+      }
+
+      .logo-badge {
+        width: 42px;
+        height: 42px;
+        border-radius: 12px;
+      }
+
+      .nav-title h1 {
+        font-size: 1.1rem;
+      }
+
+      .button-row {
+        grid-template-columns: 1fr;
+        gap: 12px;
+      }
+
+      .stats-grid {
+        grid-template-columns: 1fr;
+      }
+
+      .dropzone {
+        padding: 18px 14px;
+      }
+
+      .dz-icon {
+        width: 42px;
+        height: 42px;
+      }
+
+      .modal-backdrop {
+        padding: 10px;
+      }
+
+      .modal-window {
+        height: 94vh;
+        border-radius: 16px;
+      }
+    }
+  </style>
 </head>
+
 <body>
-  <div class="page">
-    <div class="brand" aria-hidden="true">
-      <span class="brand-mark">
-        <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-          <path d="M13 2L4 14H11L10 22L20 9H13L13 2Z" fill="#FFFFFF"/>
-        </svg>
-      </span>
-      <span class="brand-name">Bill Generator</span>
-    </div>
 
-    <div class="card">
-      <h1>Electricity Bill Generator</h1>
-      <p class="sub">Upload a template bill and consumer data to generate one PDF per row.</p>
+  <div class="dashboard-page">
+    <!-- Subtle Ambient Energy Grid & Glow -->
+    <div class="bg-energy-grid" aria-hidden="true"></div>
+    <div class="ambient-glow-top" aria-hidden="true"></div>
 
-      <p class="section-label">Source files</p>
+    <!-- Background Transmission Line Vector Accents (NO Nature/Botanicals) -->
+    <svg class="bg-canvas" viewBox="0 0 1440 900" fill="none" preserveAspectRatio="none" aria-hidden="true">
+      <path d="M0 160 Q 360 220, 720 180 T 1440 140" stroke="rgba(16, 185, 129, 0.15)" stroke-width="1.5"
+        stroke-dasharray="6 4" />
+      <path d="M0 190 Q 360 250, 720 210 T 1440 170" stroke="rgba(5, 150, 105, 0.1)" stroke-width="1.5" />
+      <path d="M80 880 L120 480 L160 880 M95 560 L145 560 M90 640 L150 640" stroke="rgba(16, 185, 129, 0.22)"
+        stroke-width="1.4" stroke-linecap="round" />
+      <path d="M120 480 L120 440" stroke="rgba(16, 185, 129, 0.28)" stroke-width="1.8" />
+      <path d="M1280 880 L1320 520 L1360 880 M1295 600 L1345 600" stroke="rgba(16, 185, 129, 0.18)" stroke-width="1.4"
+        stroke-linecap="round" />
+      <path d="M120 480 C 340 680, 800 780, 1440 700" stroke="rgba(16, 185, 129, 0.15)" stroke-width="1.5" />
+    </svg>
 
-      <form id="generate-form">
-        <div class="field">
-          <label class="field-label" for="template_pdf">
-            <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/></svg>
-            Template PDF
-          </label>
-          <div class="dropzone" id="template_pdf-dropzone">
-            <input type="file" id="template_pdf" name="template_pdf" accept=".pdf" required>
-            <span class="dz-icon">
-              <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 16V4M12 4l-4 4M12 4l4 4"/><path d="M4 16v3a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-3"/></svg>
-            </span>
-            <span class="dz-text">
-              <span class="dz-title" id="template_pdf-filename">Choose a PDF template</span>
-              <span class="dz-hint">Click or drag file here · .pdf</span>
-            </span>
+    <div class="container">
+      <!-- Single Unified Dashboard Panel -->
+      <main class="dashboard-card">
+        <!-- Integrated Header Section -->
+        <div class="panel-header">
+          <div class="nav-brand">
+            <div class="logo-badge" aria-label="Electricity Bill Generator Logo">
+              <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"
+                stroke-linecap="round" stroke-linejoin="round">
+                <polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2" />
+              </svg>
+            </div>
+            <div class="nav-title">
+              <h1>Electricity Bill Generator</h1>
+              <p>Smart & Secure Electricity Billing System · Utility Engine v2.6</p>
+            </div>
+          </div>
+
+          <div class="nav-controls">
+            <div class="status-chip">
+              <span class="status-dot"></span>
+              <span>Grid Engine: Active</span>
+            </div>
+            <div class="master-tag" id="master-tag">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2">
+                <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
+                <polyline points="14 2 14 8 20 8" />
+              </svg>
+              <span>Master: {{ master_template_name }}</span>
+            </div>
+            <div class="user-badge">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" />
+                <circle cx="12" cy="7" r="4" />
+              </svg>
+              <span>Admin</span>
+            </div>
+            <a href="/logout" id="logout-btn" class="btn-logout" title="Sign out of session">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+                stroke-linecap="round" stroke-linejoin="round">
+                <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"></path>
+                <polyline points="16 17 21 12 16 7"></polyline>
+                <line x1="21" y1="12" x2="9" y2="12"></line>
+              </svg>
+              <span>Logout</span>
+            </a>
           </div>
         </div>
 
-        <div class="field">
-          <label class="field-label" for="excel_file">
-            <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M3 9h18M9 21V9"/></svg>
-            Consumer Data (Excel)
-          </label>
-          <div class="dropzone" id="excel_file-dropzone">
-            <input type="file" id="excel_file" name="excel_file" accept=".xlsx,.xls" required>
-            <span class="dz-icon">
-              <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 16V4M12 4l-4 4M12 4l4 4"/><path d="M4 16v3a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-3"/></svg>
-            </span>
-            <span class="dz-text">
-              <span class="dz-title" id="excel_file-filename">Choose an Excel file</span>
-              <span class="dz-hint">Click or drag file here · .xlsx, .xls</span>
-            </span>
+        <!-- Electrical Accent Divider -->
+        <div class="panel-divider"></div>
+
+        <form id="billing-form">
+          <!-- 2-Column Upload Zones -->
+          <div class="upload-grid">
+            <!-- Excel Consumer Upload -->
+            <div class="field-group">
+              <div class="field-label">
+                <span class="label-left">
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <rect x="3" y="3" width="18" height="18" rx="2" />
+                    <path d="M3 9h18M9 21V9" />
+                  </svg>
+                  1. Consumer Data (Excel)
+                </span>
+                <span class="badge-tag required">Required</span>
+              </div>
+              <div class="dropzone" id="excel-dropzone">
+                <input type="file" id="excel_file" name="excel_file" accept=".xlsx,.xls" required>
+                <div class="dz-icon">
+                  <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
+                    <polyline points="14 2 14 8 20 8" />
+                    <line x1="16" y1="13" x2="8" y2="13" />
+                    <line x1="16" y1="17" x2="8" y2="17" />
+                  </svg>
+                </div>
+                <div class="dz-info">
+                  <span class="dz-name" id="excel-filename">Choose or drag Excel file</span>
+                  <span class="dz-hint">Supports .xlsx or .xls · Multiple consumer rows</span>
+                </div>
+              </div>
+            </div>
+
+            <!-- Template PDF Override -->
+            <div class="field-group">
+              <div class="field-label">
+                <span class="label-left">
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
+                    <polyline points="14 2 14 8 20 8" />
+                  </svg>
+                  2. Master Demo PDF Template
+                </span>
+                <span class="badge-tag">Defaults to DEMONEWPDF.pdf</span>
+              </div>
+              <div class="dropzone" id="template-dropzone">
+                <input type="file" id="template_pdf" name="template_pdf" accept=".pdf">
+                <div class="dz-icon">
+                  <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M12 16V4M12 4l-4 4M12 4l4 4" />
+                    <path d="M4 16v3a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-3" />
+                  </svg>
+                </div>
+                <div class="dz-info">
+                  <span class="dz-name" id="template-filename">DEMONEWPDF.pdf (Default Master)</span>
+                  <span class="dz-hint">Upload custom Demo PDF to override layout, or keep default</span>
+                </div>
+              </div>
+            </div>
           </div>
-        </div>
 
-        <button type="submit" id="generate-btn">
-          <span id="generate-btn-label">Generate PDFs</span>
-        </button>
-      </form>
+          <!-- Dynamic Template & Mapping Analysis Panel -->
+          <div class="analysis-panel" id="analysis-panel">
+            <div class="analysis-header">
+              <span class="analysis-title">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <path d="M22 12h-4l-3 9L9 3l-3 9H2" />
+                </svg>
+                Template & Mapping Intelligence
+              </span>
+              <span id="analysis-status-badge" class="badge-tag"
+                style="background:#e0f2fe; color:#0369a1;">Analyzing...</span>
+            </div>
+            <div class="stats-grid">
+              <div class="stat-card">
+                <span>Active Template</span>
+                <strong id="stat-template-name">-</strong>
+              </div>
+              <div class="stat-card">
+                <span>Consumer Records</span>
+                <strong id="stat-records-count">-</strong>
+              </div>
+              <div class="stat-card">
+                <span>Mapped PDF Fields</span>
+                <strong id="stat-fields-count">-</strong>
+              </div>
+            </div>
+            <div id="mapping-warnings-container"></div>
+          </div>
 
-      <div id="status" role="status" aria-live="polite"></div>
+          <!-- Action Controls -->
+          <div class="button-row">
+            <button type="button" class="btn-preview" id="preview-btn" disabled>
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" />
+                <circle cx="12" cy="12" r="3" />
+              </svg>
+              <span>Preview Bill (Row 1)</span>
+            </button>
+            <button type="submit" class="btn-generate" id="generate-btn" disabled>
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+                <polyline points="7 10 12 15 17 10" />
+                <line x1="12" y1="15" x2="12" y2="3" />
+              </svg>
+              <span id="generate-btn-label">Generate & Download (ZIP)</span>
+            </button>
+          </div>
+        </form>
+
+        <!-- Results & Status -->
+        <div id="status"></div>
+      </main>
     </div>
   </div>
 
-<script>
-const form = document.getElementById("generate-form");
-const statusEl = document.getElementById("status");
-const btn = document.getElementById("generate-btn");
-const btnLabel = document.getElementById("generate-btn-label");
+  <!-- Preview Modal -->
+  <div class="modal-backdrop" id="preview-modal">
+    <div class="modal-window">
+      <div class="modal-header">
+        <h3>
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="var(--primary-green)" stroke-width="2">
+            <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
+            <polyline points="14 2 14 8 20 8" />
+          </svg>
+          <span>Invoice Live Preview (Consumer Row 1)</span>
+        </h3>
+        <button type="button" class="modal-close" id="close-modal" aria-label="Close modal">&times;</button>
+      </div>
+      <div class="modal-body">
+        <iframe id="preview-frame"></iframe>
+      </div>
+    </div>
+  </div>
 
-/* ---- UI-only enhancement: show selected file name + drag styling.
-   Does not alter form submission, field names, or IDs. ---- */
-function wireDropzone(inputId) {
-  const input = document.getElementById(inputId);
-  const dropzone = document.getElementById(inputId + "-dropzone");
-  const filenameEl = document.getElementById(inputId + "-filename");
-  const defaultText = filenameEl.textContent;
+  <script>
+    const form = document.getElementById("billing-form");
+    const excelInput = document.getElementById("excel_file");
+    const templateInput = document.getElementById("template_pdf");
+    const excelDz = document.getElementById("excel-dropzone");
+    const templateDz = document.getElementById("template-dropzone");
+    const excelFilename = document.getElementById("excel-filename");
+    const templateFilename = document.getElementById("template-filename");
 
-  input.addEventListener("change", () => {
-    if (input.files && input.files.length > 0) {
-      filenameEl.textContent = input.files[0].name;
-      dropzone.classList.add("has-file");
-    } else {
-      filenameEl.textContent = defaultText;
-      dropzone.classList.remove("has-file");
+    const analysisPanel = document.getElementById("analysis-panel");
+    const statTemplateName = document.getElementById("stat-template-name");
+    const statRecordsCount = document.getElementById("stat-records-count");
+    const statFieldsCount = document.getElementById("stat-fields-count");
+    const warningsContainer = document.getElementById("mapping-warnings-container");
+    const analysisBadge = document.getElementById("analysis-status-badge");
+
+    const previewBtn = document.getElementById("preview-btn");
+    const generateBtn = document.getElementById("generate-btn");
+    const generateLabel = document.getElementById("generate-btn-label");
+    const statusEl = document.getElementById("status");
+
+    const previewModal = document.getElementById("preview-modal");
+    const previewFrame = document.getElementById("preview-frame");
+    const closeModal = document.getElementById("close-modal");
+
+    function setupDropzone(input, dz, labelEl, defaultLabel) {
+      input.addEventListener("change", () => {
+        if (input.files && input.files.length > 0) {
+          labelEl.textContent = input.files[0].name;
+          dz.classList.add("has-file");
+        } else {
+          labelEl.textContent = defaultLabel;
+          dz.classList.remove("has-file");
+        }
+        triggerAnalysis();
+      });
+
+      ["dragenter", "dragover"].forEach(evt => {
+        dz.addEventListener(evt, (e) => { e.preventDefault(); dz.classList.add("drag-active"); });
+      });
+      ["dragleave", "drop"].forEach(evt => {
+        dz.addEventListener(evt, (e) => { e.preventDefault(); dz.classList.remove("drag-active"); });
+      });
+      dz.addEventListener("drop", (e) => {
+        if (e.dataTransfer && e.dataTransfer.files && e.dataTransfer.files.length > 0) {
+          input.files = e.dataTransfer.files;
+          input.dispatchEvent(new Event("change"));
+        }
+      });
     }
-  });
 
-  ["dragenter", "dragover"].forEach(evt => {
-    dropzone.addEventListener(evt, (e) => {
-      e.preventDefault();
-      dropzone.classList.add("drag-active");
+    setupDropzone(excelInput, excelDz, excelFilename, "Choose or drag Excel file");
+    setupDropzone(templateInput, templateDz, templateFilename, "DEMONEWPDF.pdf (Default Master)");
+
+    async function triggerAnalysis() {
+      if (!excelInput.files || excelInput.files.length === 0) {
+        analysisPanel.style.display = "none";
+        previewBtn.disabled = true;
+        generateBtn.disabled = true;
+        return;
+      }
+
+      const formData = new FormData();
+      formData.append("excel_file", excelInput.files[0]);
+      if (templateInput.files && templateInput.files.length > 0) {
+        formData.append("template_pdf", templateInput.files[0]);
+      }
+
+      analysisPanel.style.display = "block";
+      analysisBadge.textContent = "Analyzing...";
+      analysisBadge.style.background = "#e0f2fe";
+      analysisBadge.style.color = "#0369a1";
+
+      try {
+        const res = await fetch("/inspect_mapping", { method: "POST", body: formData });
+        const data = await res.json();
+
+        if (!res.ok) {
+          throw new Error(data.error || "Analysis failed");
+        }
+
+        statTemplateName.textContent = data.template_name;
+        statRecordsCount.textContent = `${data.total_records} records`;
+        statFieldsCount.textContent = `${data.total_template_fields} fields`;
+
+        warningsContainer.innerHTML = "";
+        if (data.warnings && data.warnings.length > 0) {
+          data.warnings.forEach(w => {
+            const wb = document.createElement("div");
+            wb.className = "warning-box";
+            wb.innerHTML = `
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="flex-shrink:0; margin-top:2px;">
+            <path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z"/>
+            <line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/>
+          </svg>
+          <div>${w}</div>
+        `;
+            warningsContainer.appendChild(wb);
+          });
+        }
+
+        if (data.is_valid) {
+          analysisBadge.textContent = "Template & Mapping Ready";
+          analysisBadge.style.background = "#ecfdf5";
+          analysisBadge.style.color = "#065f46";
+          previewBtn.disabled = false;
+          generateBtn.disabled = false;
+        } else {
+          analysisBadge.textContent = "Validation Issue";
+          analysisBadge.style.background = "#fee2e2";
+          analysisBadge.style.color = "#b91c1c";
+          previewBtn.disabled = true;
+          generateBtn.disabled = true;
+        }
+      } catch (err) {
+        analysisBadge.textContent = "Analysis Error";
+        analysisBadge.style.background = "#fee2e2";
+        analysisBadge.style.color = "#b91c1c";
+        warningsContainer.innerHTML = `
+      <div class="warning-box" style="background:#fef2f2;color:#991b1b;border-color:#fecaca;">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="flex-shrink:0;">
+          <circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/>
+        </svg>
+        <div>${err.message}</div>
+      </div>`;
+        previewBtn.disabled = true;
+        generateBtn.disabled = true;
+      }
+    }
+
+    // Preview button click
+    previewBtn.addEventListener("click", async () => {
+      if (!excelInput.files || excelInput.files.length === 0) return;
+
+      const formData = new FormData();
+      formData.append("excel_file", excelInput.files[0]);
+      if (templateInput.files && templateInput.files.length > 0) {
+        formData.append("template_pdf", templateInput.files[0]);
+      }
+
+      previewBtn.disabled = true;
+      previewBtn.innerHTML = '<span class="spinner"></span><span>Loading Preview...</span>';
+
+      try {
+        const res = await fetch("/preview", { method: "POST", body: formData });
+        if (!res.ok) {
+          const errData = await res.json().catch(() => ({}));
+          throw new Error(errData.error || "Failed to preview bill.");
+        }
+        const blob = await res.blob();
+        const pdfUrl = URL.createObjectURL(blob);
+        previewFrame.src = pdfUrl;
+        previewModal.classList.add("open");
+      } catch (err) {
+        alert("Preview error: " + err.message);
+      } finally {
+        previewBtn.disabled = false;
+        previewBtn.innerHTML = '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg><span>Preview Bill (Row 1)</span>';
+      }
     });
-  });
-  ["dragleave", "drop"].forEach(evt => {
-    dropzone.addEventListener(evt, (e) => {
-      e.preventDefault();
-      dropzone.classList.remove("drag-active");
+
+    closeModal.addEventListener("click", () => {
+      previewModal.classList.remove("open");
+      if (previewFrame.src) {
+        URL.revokeObjectURL(previewFrame.src);
+        previewFrame.src = "";
+      }
     });
-  });
-  dropzone.addEventListener("drop", (e) => {
-    if (e.dataTransfer && e.dataTransfer.files && e.dataTransfer.files.length > 0) {
-      input.files = e.dataTransfer.files;
-      input.dispatchEvent(new Event("change"));
-    }
-  });
-}
-wireDropzone("template_pdf");
-wireDropzone("excel_file");
 
-/* ---- Alert icon markup for status states ---- */
-const successIcon = '<svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6L9 17l-5-5"/></svg>';
-const errorIcon = '<svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M12 8v5M12 16h.01"/></svg>';
+    // Close modal when clicking outside
+    previewModal.addEventListener("click", (e) => {
+      if (e.target === previewModal) {
+        closeModal.click();
+      }
+    });
 
-/* ---- Original submit logic, unchanged: same endpoint, same
-   FormData, same blob/download handling, same status semantics.
-   Only the status markup and button contents are enriched. ---- */
-form.addEventListener("submit", async (e) => {
-  e.preventDefault();
-  statusEl.className = "";
-  statusEl.innerHTML = "";
+    // Generate & Download ZIP
+    form.addEventListener("submit", async (e) => {
+      e.preventDefault();
+      statusEl.innerHTML = "";
 
-  const formData = new FormData(form);
-  btn.disabled = true;
-  btn.innerHTML = '<span class="spinner" aria-hidden="true"></span><span>Generating...</span>';
+      const formData = new FormData(form);
+      generateBtn.disabled = true;
+      previewBtn.disabled = true;
+      generateBtn.innerHTML = '<span class="spinner"></span><span>Generating Production PDFs...</span>';
 
-  try {
-    const response = await fetch("/generate", { method: "POST", body: formData });
+      try {
+        const res = await fetch("/generate", { method: "POST", body: formData });
 
-    if (!response.ok) {
-      const data = await response.json().catch(() => ({}));
-      throw new Error(data.error || "Something went wrong.");
-    }
+        if (!res.ok) {
+          const errData = await res.json().catch(() => ({}));
+          throw new Error(errData.error || "Generation failed.");
+        }
 
-    const blob = await response.blob();
-    const count = response.headers.get("X-Generated-Count");
-    const url = window.URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = "Generated_Bills.zip";
-    document.body.appendChild(a);
-    a.click();
-    a.remove();
-    window.URL.revokeObjectURL(url);
+        const count = res.headers.get("X-Generated-Count") || "all";
+        const templateUsed = res.headers.get("X-Template-Name") || "DEMONEWPDF.pdf";
+        const blob = await res.blob();
+        const zipUrl = URL.createObjectURL(blob);
+        const a = document.createElement("a");
+        a.href = zipUrl;
+        a.download = "Generated_Bills.zip";
+        document.body.appendChild(a);
+        a.click();
+        a.remove();
+        URL.revokeObjectURL(zipUrl);
 
-    statusEl.className = "success";
-    const message = count
-      ? `Done! ${count} bill(s) generated and downloaded.`
-      : "Done! Your bills have been downloaded.";
-    statusEl.innerHTML = `<div class="alert">${successIcon}<span>${message}</span></div>`;
-  } catch (err) {
-    statusEl.className = "error";
-    statusEl.innerHTML = `<div class="alert">${errorIcon}<span>${err.message}</span></div>`;
-  } finally {
-    btn.disabled = false;
-    btn.innerHTML = '<span id="generate-btn-label">Generate PDFs</span>';
-  }
-});
-</script>
+        statusEl.innerHTML = `
+      <div class="alert success">
+        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M20 6L9 17l-5-5"/></svg>
+        <div>
+          <div><strong>Generation Complete!</strong> Successfully generated ${count} electricity bills using master template <em>${templateUsed}</em>.</div>
+          <div style="font-size:12px; margin-top:3px; opacity:0.9;">Archive downloaded as <strong>Generated_Bills.zip</strong></div>
+        </div>
+      </div>`;
+      } catch (err) {
+        statusEl.innerHTML = `
+      <div class="alert error">
+        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+        <div><strong>Generation Failed:</strong> ${err.message}</div>
+      </div>`;
+      } finally {
+        generateBtn.disabled = false;
+        previewBtn.disabled = false;
+        generateBtn.innerHTML = '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg><span>Generate & Download (ZIP)</span>';
+      }
+    });
+  </script>
+
 </body>
+
 </html>
