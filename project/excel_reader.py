@@ -31,11 +31,32 @@ must come from the real data. If they're missing, they are left blank
 instead of being padded with a sample value.
 """
 
+import io
+import os
 from typing import Dict, List
 
 import openpyxl
+from openpyxl.styles import Font, PatternFill, Alignment, Border, Side
+from openpyxl.utils import get_column_letter
 
 from demo_defaults import get_default_consumer_values
+
+TEMPLATE_EXCEL_CANDIDATES = [
+    os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "Bimonthly_Bills_2021_to_August_2026.xlsx"),
+    os.path.join(os.path.dirname(os.path.abspath(__file__)), "Bimonthly_Bills_2021_to_August_2026.xlsx"),
+    r"f:\BILLING\Bimonthly_Bills_2021_to_August_2026.xlsx",
+]
+
+DEFAULT_TEMPLATE_HEADERS = [
+    'Customer_ID', 'Consumer_Name', 'Address', 'Mobile_No', 'Email', 'Category',
+    'Supply_Type', 'Sanctioned_Load', 'Billing_Month', 'Reading_Date', 'Bill_Date',
+    'Due_Date', 'Bill_No', 'Meter_No', 'Start_Reading', 'End_Reading', 'Multiplier',
+    'Units', 'Energy_Charges', 'Fixed_Charges', 'FPPCA_Charges', 'Govt_Duty_Charges',
+    'Arrear', 'Other_Debit_Credit', 'Prompt_Rebate', 'Advance_Rebate',
+    'Delayed_Payment_Charges', 'Total_Amount', 'Amount_After_Due',
+    'Previous_Payment', 'Previous_Payment_Date', 'Security_Deposit', 'Additional_Security'
+]
+
 
 # Maps an internal field name -> list of acceptable header aliases found in
 # the spreadsheet (case-insensitive, spaces/underscores interchangeable).
@@ -241,3 +262,73 @@ def build_consumption_history(consumers: List[Dict]) -> Dict:
             continue
         history.setdefault(cust_id, {})[(month, year)] = row.get("units")
     return history
+
+
+def get_template_headers() -> List[str]:
+    """
+    Fetch the list of standard column headers from Bimonthly_Bills_2021_to_August_2026.xlsx.
+    Falls back to DEFAULT_TEMPLATE_HEADERS if the file is unreachable.
+    """
+    for candidate in TEMPLATE_EXCEL_CANDIDATES:
+        if os.path.exists(candidate):
+            try:
+                wb = openpyxl.load_workbook(candidate, data_only=True)
+                sheet = wb.worksheets[0]
+                headers = [
+                    str(cell.value).strip()
+                    for cell in sheet[1]
+                    if cell.value is not None and str(cell.value).strip()
+                ]
+                if headers:
+                    return headers
+            except Exception as exc:
+                print(f"[WARNING] Could not read headers from {candidate}: {exc}")
+    return list(DEFAULT_TEMPLATE_HEADERS)
+
+
+def generate_header_template_excel(headers: List[str] = None) -> io.BytesIO:
+    """
+    Creates an in-memory Excel workbook (.xlsx) containing ONLY the header row.
+    Formats the header with clean styling (utility green fill, bold white text,
+    auto column widths, and frozen panes).
+    Returns a BytesIO stream ready for download.
+    """
+    if not headers:
+        headers = get_template_headers()
+
+    wb = openpyxl.Workbook()
+    ws = wb.active
+    ws.title = "Consumer_Data"
+
+    # Append header row
+    ws.append(headers)
+
+    # Styling
+    header_font = Font(name="Calibri", size=11, bold=True, color="FFFFFF")
+    header_fill = PatternFill(start_color="059669", end_color="059669", fill_type="solid")
+    header_alignment = Alignment(horizontal="center", vertical="center", wrap_text=False)
+    thin_border = Border(
+        left=Side(style="thin", color="047857"),
+        right=Side(style="thin", color="047857"),
+        top=Side(style="thin", color="047857"),
+        bottom=Side(style="thin", color="047857"),
+    )
+
+    ws.row_dimensions[1].height = 28
+
+    for col_num, header_name in enumerate(headers, 1):
+        cell = ws.cell(row=1, column=col_num)
+        cell.font = header_font
+        cell.fill = header_fill
+        cell.alignment = header_alignment
+        cell.border = thin_border
+
+        col_letter = get_column_letter(col_num)
+        ws.column_dimensions[col_letter].width = max(len(str(header_name)) + 4, 15)
+
+    ws.freeze_panes = "A2"
+
+    stream = io.BytesIO()
+    wb.save(stream)
+    stream.seek(0)
+    return stream

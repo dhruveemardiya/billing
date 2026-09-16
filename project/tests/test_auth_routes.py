@@ -147,6 +147,41 @@ class TestAuthRoutes(unittest.TestCase):
         self.assertEqual(resp_after.status_code, 302)
         self.assertIn("/login", resp_after.headers["Location"])
 
+    def test_download_template_unauthenticated(self):
+        resp = self.client.get("/download-template")
+        self.assertEqual(resp.status_code, 302)
+        self.assertIn("/login", resp.headers["Location"])
+
+    def test_download_template_authenticated(self):
+        import io
+        import openpyxl
+
+        # Login first
+        self.client.post(
+            "/api/login",
+            data=json.dumps({"username": "Admin", "password": "Bill@2026"}),
+            content_type="application/json",
+        )
+
+        resp = self.client.get("/download-template")
+        self.assertEqual(resp.status_code, 200)
+        self.assertIn("application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", resp.content_type)
+        self.assertIn("Consumer_Data_Template.xlsx", resp.headers.get("Content-Disposition", ""))
+
+        # Verify Excel content has headers only
+        wb = openpyxl.load_workbook(io.BytesIO(resp.data))
+        sheet = wb.worksheets[0]
+        rows = list(sheet.iter_rows(values_only=True))
+
+        self.assertEqual(len(rows), 1, "Template must contain ONLY the header row (no data rows)")
+        headers = list(rows[0])
+        self.assertIn("Customer_ID", headers)
+        self.assertIn("Consumer_Name", headers)
+        self.assertIn("Units", headers)
+        self.assertIn("Billing_Month", headers)
+        self.assertEqual(len(headers), 33)
+
 
 if __name__ == "__main__":
     unittest.main()
+

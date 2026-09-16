@@ -318,9 +318,48 @@
       gap: 8px;
     }
 
+    .field-label .label-right {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .btn-download-template {
+      display: inline-flex;
+      align-items: center;
+      gap: 5px;
+      padding: 3px 9px;
+      background: #ffffff;
+      border: 1.5px solid #a7f3d0;
+      border-radius: 6px;
+      color: var(--primary-green);
+      font-size: 0.72rem;
+      font-weight: 700;
+      text-decoration: none;
+      text-transform: none;
+      letter-spacing: 0.01em;
+      box-shadow: 0 1px 3px rgba(5, 150, 105, 0.08);
+      transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+      cursor: pointer;
+    }
+
+    .btn-download-template:hover {
+      background: var(--electric-mint-subtle);
+      border-color: var(--primary-green);
+      color: var(--primary-green-hover);
+      transform: translateY(-1px);
+      box-shadow: 0 4px 10px rgba(16, 185, 129, 0.18);
+    }
+
+    .btn-download-template svg {
+      color: var(--primary-green);
+      flex-shrink: 0;
+    }
+
     .field-label svg {
       color: var(--primary-green);
     }
+
 
     .badge-tag {
       font-size: 0.68rem;
@@ -766,6 +805,11 @@
         padding: 14px 12px 40px 12px;
       }
 
+      .field-label {
+        flex-wrap: wrap;
+        gap: 6px;
+      }
+
       .dashboard-card {
         padding: 22px 18px;
         border-radius: 18px;
@@ -905,7 +949,17 @@
                   </svg>
                   1. Consumer Data (Excel)
                 </span>
-                <span class="badge-tag required">Required</span>
+                <div class="label-right">
+                  <a href="/download-template" class="btn-download-template" id="download-template-btn" title="Download clean Excel template containing only the required headers">
+                    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round">
+                      <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+                      <polyline points="7 10 12 15 17 10"></polyline>
+                      <line x1="12" y1="15" x2="12" y2="3"></line>
+                    </svg>
+                    <span>Download Excel Template</span>
+                  </a>
+                  <span class="badge-tag required">Required</span>
+                </div>
               </div>
               <div class="dropzone" id="excel-dropzone">
                 <input type="file" id="excel_file" name="excel_file" accept=".xlsx,.xls" required>

@@ -92,6 +92,28 @@ def logout():
     return redirect(url_for("login_page"))
 
 
+@app.route("/download-template")
+@app.route("/api/download-template")
+def download_template():
+    """
+    Downloads an Excel template containing ONLY the header row
+    fetched directly from Bimonthly_Bills_2021_to_August_2026.xlsx.
+    """
+    if not session.get("authenticated"):
+        return redirect(url_for("login_page"))
+
+    headers = excel_reader.get_template_headers()
+    excel_stream = excel_reader.generate_header_template_excel(headers)
+
+    return send_file(
+        excel_stream,
+        mimetype="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        as_attachment=True,
+        download_name="Consumer_Data_Template.xlsx",
+    )
+
+
+
 @app.route("/inspect_mapping", methods=["POST"])
 def inspect_mapping():
     """
