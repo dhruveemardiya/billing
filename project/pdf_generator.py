@@ -298,12 +298,12 @@ def _build_page_overlay(page_width, page_height, fields, values, registered_font
             continue
 
         if field.key == "previous_payment_line":
-            c.setFillColorRGB(0, 0, 0)
-            norm_font = _resolve_font_name("Manrope-Regular", registered_fonts)
-            c.setFont(norm_font, 7.5)
-            line1_text = text if text else "Thank you for your previous payment of ₹ 7,420.00 on 14/07/26 ."
-            c.drawString(250.0, page_height - 304.5, line1_text)
-            c.drawString(250.0, page_height - 315.5, "Payment received through Billdesk - NetBanking.")
+            if text:
+                c.setFillColorRGB(0, 0, 0)
+                norm_font = _resolve_font_name("Manrope-Regular", registered_fonts)
+                c.setFont(norm_font, 7.5)
+                c.drawString(250.0, page_height - 304.5, text)
+                c.drawString(250.0, page_height - 315.5, "Payment received through Billdesk - NetBanking.")
             continue
 
         if field.key in ("coupon_group_no", "coupon_customer_id", "coupon_due_date", "coupon_amount_upto_due"):
@@ -460,10 +460,14 @@ def _build_page_overlay(page_width, page_height, fields, values, registered_font
                 y_curr = values.get(f"chart_year_{pair_idx * 2 + 1}", "")
                 center_x = 333.0 + pair_idx * 39.0
 
-                if y_prev and y_curr:
+                if y_prev and y_curr and y_prev != y_curr:
                     c.setFont(year_font, 5.5)
                     c.setFillColorRGB(0.0, 0.0, 0.0)
                     c.drawCentredString(center_x, page_height - 686.4, f"{y_prev} {y_curr}")
+                elif y_curr:
+                    c.setFont(year_font, 5.5)
+                    c.setFillColorRGB(0.0, 0.0, 0.0)
+                    c.drawCentredString(center_x, page_height - 686.4, str(y_curr))
                 if m_label:
                     c.setFont(month_font, 6.0)
                     c.setFillColorRGB(0.0, 0.0, 0.0)
@@ -481,6 +485,7 @@ def _build_page_overlay(page_width, page_height, fields, values, registered_font
         chart_pt_per_unit = ((max_chart_height * target_fill_ratio / _tallest) if _tallest > 0 else 0.2)
 
         resolved_chart_font = _resolve_font_name(chart_font, registered_fonts)
+        hl_idx = values.get("highlight_bar_index")
 
         for i, raw_value in enumerate(chart_values):
             if raw_value is None or i >= len(bar_x_positions):
@@ -493,7 +498,9 @@ def _build_page_overlay(page_width, page_height, fields, values, registered_font
             bar_x0, bar_x1 = bar_x_positions[i]
             bar_height = min(value_num * chart_pt_per_unit, axis_y - clear_top)
 
-            if i == len(bar_x_positions) - 1:
+            if hl_idx is not None and i == hl_idx:
+                bar_color = HIGHLIGHT_COLOR
+            elif hl_idx is None and i == len(bar_x_positions) - 1:
                 bar_color = HIGHLIGHT_COLOR
             elif i % 2 == 0:
                 bar_color = PRIOR_YEAR_COLOR
@@ -587,8 +594,16 @@ def validate_bill_generation_data(values: dict, bill, consumer: dict, consumptio
     if str(int(bill.units_consumed)) != values.get("consumption_units"):
         raise ValueError(f"[CHECK F FAILED] Consumption units {values.get('consumption_units')} != bill units {bill.units_consumed}")
     chart_vals = values.get("chart_values", [])
-    if chart_vals and chart_vals[-1] != bill.units_consumed:
-        raise ValueError(f"[CHECK F FAILED] Final chart value {chart_vals[-1]} != bill units {bill.units_consumed}")
+    if chart_vals:
+        hl_idx = values.get("highlight_bar_index")
+        if hl_idx is not None and hl_idx < len(chart_vals):
+            check_val = chart_vals[hl_idx]
+            if check_val is not None and check_val != bill.units_consumed:
+                raise ValueError(f"[CHECK F FAILED] Active chart value {check_val} != bill units {bill.units_consumed}")
+        else:
+            non_empty_vals = [v for v in chart_vals if v is not None]
+            if non_empty_vals and non_empty_vals[-1] != bill.units_consumed:
+                raise ValueError(f"[CHECK F FAILED] Final chart value {non_empty_vals[-1]} != bill units {bill.units_consumed}")
 
     # Check G: Month labels match their corresponding consumption values
     m_label = values.get("billing_month")

@@ -88,14 +88,6 @@ def get_default_consumer_values(template_path: str = _DEFAULT_TEMPLATE) -> Dict[
                     continue
 
                 if f.key == "previous_payment_line":
-                    match = _PREV_PAYMENT_RE.search(raw_text)
-                    if match:
-                        amount_str, date_str = match.groups()
-                        try:
-                            defaults["previous_payment"] = float(amount_str.replace(",", ""))
-                        except ValueError:
-                            pass
-                        defaults["previous_payment_date"] = date_str
                     continue
 
                 cleaned = _clean_field(f.key, raw_text)
@@ -119,10 +111,6 @@ def get_default_consumer_values(template_path: str = _DEFAULT_TEMPLATE) -> Dict[
                 defaults["t_no"] = "3004645778"
                 defaults["substation"] = "66 KV MALALA SS"
                 defaults["group_no"] = "DI070010"
-                if not defaults.get("previous_payment"):
-                    defaults["previous_payment"] = 7420.0
-                if not defaults.get("previous_payment_date"):
-                    defaults["previous_payment_date"] = "14/07/26"
 
     except Exception as exc:
         print("Error extracting defaults from template:", exc)

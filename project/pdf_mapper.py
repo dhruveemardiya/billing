@@ -171,19 +171,24 @@ def build_field_values(consumer: dict, bill, consumption_history: dict = None, t
 
     billing_month_raw = consumer.get("billing_month")
     is_modern = (template_info.layout_type == "modern_manrope") if template_info else True
-    step = 2 if "60" in str(consumer.get("billing_mode") or "60") else 1
-    month_labels, year_labels, current_month, current_year = _build_chart_axis_labels(billing_month_raw, groups=6, step=step)
     cust_id = str(consumer.get("customer_id") or "")
-    cust_history = (consumption_history or {}).get(cust_id, {})
-    chart_values = []
-    for i in range(len(month_labels)):
-        m = month_labels[i]
-        y_prev, y_curr = year_labels[i * 2], year_labels[i * 2 + 1]
-        chart_values.append(cust_history.get((m, y_prev)))
-        chart_values.append(cust_history.get((m, y_curr)))
+    if consumer.get("chart_month_labels") and consumer.get("chart_values"):
+        month_labels = list(consumer["chart_month_labels"])
+        year_labels = list(consumer.get("chart_year_labels") or [])
+        chart_values = list(consumer["chart_values"])
+    else:
+        step = 2 if "60" in str(consumer.get("billing_mode") or "60") else 1
+        month_labels, year_labels, current_month, current_year = _build_chart_axis_labels(billing_month_raw, groups=6, step=step)
+        cust_history = (consumption_history or {}).get(cust_id, {})
+        chart_values = []
+        for i in range(len(month_labels)):
+            m = month_labels[i]
+            y_prev, y_curr = year_labels[i * 2], year_labels[i * 2 + 1]
+            chart_values.append(cust_history.get((m, y_prev)))
+            chart_values.append(cust_history.get((m, y_curr)))
 
-    # Fill chart values only with actual data; never fabricate fake seasonal factors (Requirement 8 & 9)
-    chart_values[-1] = bill.units_consumed
+        # Fill chart values only with actual data; never fabricate fake seasonal factors (Requirement 8 & 9)
+        chart_values[-1] = bill.units_consumed
 
     mobile = str(consumer.get("mobile_no") or "")
     masked_mobile = ("*" * max(len(mobile) - 4, 0)) + mobile[-4:] if mobile else ""
@@ -274,7 +279,7 @@ def build_field_values(consumer: dict, bill, consumption_history: dict = None, t
         "substation": str(consumer.get("substation") or ("66 KV MALALA SS" if is_modern else "")),
         "previous_payment_line": (
             f"Thank you for your previous payment of ₹ {round(prev_amt):,.2f} on {previous_payment_date} ."
-            if prev_amt else ("Thank you for your previous payment of ₹ 7,420.00 on 14/07/26 ." if is_modern else "")
+            if prev_amt and previous_payment_date else ""
         ),
         "headline_due_amount": f"{round(bill.total_amount_due):,.2f}",
         "due_by_date": due_date_str,
@@ -315,6 +320,7 @@ def build_field_values(consumer: dict, bill, consumption_history: dict = None, t
         "coupon_amount_after_due": _format_currency(bill.amount_after_due_date),
         "chart_current_value": str(int(bill.units_consumed)),
         "chart_values": chart_values,
+        "highlight_bar_index": consumer.get("highlight_bar_index"),
         **{f"chart_year_{i}": y for i, y in enumerate(year_labels)},
         **{f"chart_month_{i}": m for i, m in enumerate(month_labels)},
     }

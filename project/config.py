@@ -98,3 +98,12 @@ DEFAULT_CATEGORY = "DOMESTIC"
 # Rounding
 # --------------------------------------------------------------------------
 CURRENCY_DECIMAL_PLACES = 2
+
+# --------------------------------------------------------------------------
+# Dynamic Consumption Variation Range (Direct Billing)
+# --------------------------------------------------------------------------
+# Percentage variation applied to Reference Units for each generated month.
+# e.g., range between -10% and +10% around the reference value.
+DEFAULT_UNIT_VARIATION_PERCENT_MIN = 0.04  # Minimum absolute jitter
+DEFAULT_UNIT_VARIATION_PERCENT_MAX = 0.11  # Maximum absolute jitter
+MINIMUM_DYNAMIC_UNITS = 10                  # Absolute floor for consumed units
