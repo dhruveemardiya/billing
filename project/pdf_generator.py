@@ -443,48 +443,53 @@ def _build_page_overlay(page_width, page_height, fields, values, registered_font
         bar_x_positions = chart.get("bar_x_positions", [])
         chart_font = chart.get("font", "Manrope-Regular")
 
+        # Clear old static chart data before drawing the dynamic chart
         chart_bg = (1.0, 1.0, 1.0) if template_structure.layout_type == "modern_manrope" else pdf_mapper.CREAM_BG
         c.setFillColorRGB(*chart_bg)
-        c.rect(clear_x0, page_height - axis_y, clear_x1 - clear_x0, axis_y - clear_top, stroke=0, fill=1)
+        # Erase bar area
+        c.rect(clear_x0 - 2.0, page_height - axis_y, clear_x1 - clear_x0 + 4.0, axis_y - clear_top, stroke=0, fill=1)
+        # Erase axis labels area
+        c.rect(clear_x0 - 2.0, page_height - (axis_y + 22.0), clear_x1 - clear_x0 + 4.0, 22.0, stroke=0, fill=1)
 
-        # Clear and redraw axis labels for modern_manrope so months and years match the bill
-        if template_structure.layout_type == "modern_manrope":
-            c.rect(clear_x0 - 2.0, page_height - (axis_y + 22.0), clear_x1 - clear_x0 + 4.0, 22.0, stroke=0, fill=1)
+        chart_values = values.get("chart_values", [])
+        month_font = _resolve_font_name("Manrope-Bold", registered_fonts)
+        year_font = _resolve_font_name("Manrope-Regular", registered_fonts)
 
-            # Draw updated years and month labels matching DEMONEWPDF typography
-            month_font = _resolve_font_name("Manrope-Bold", registered_fonts)
-            year_font = _resolve_font_name("Manrope-Regular", registered_fonts)
-            for pair_idx in range(6):
-                m_label = values.get(f"chart_month_{pair_idx}", "")
-                y_prev = values.get(f"chart_year_{pair_idx * 2}", "")
-                y_curr = values.get(f"chart_year_{pair_idx * 2 + 1}", "")
-                center_x = 333.0 + pair_idx * 39.0
+        for pair_idx in range(6):
+            m_label = values.get(f"chart_month_{pair_idx}", "")
+            y_prev = str(values.get(f"chart_year_{pair_idx * 2}", "") or "")
+            y_curr = str(values.get(f"chart_year_{pair_idx * 2 + 1}", "") or "")
 
-                if y_prev and y_curr and y_prev != y_curr:
-                    c.setFont(year_font, 5.5)
-                    c.setFillColorRGB(0.0, 0.0, 0.0)
-                    c.drawCentredString(center_x, page_height - 686.4, f"{y_prev} {y_curr}")
-                elif y_curr:
-                    c.setFont(year_font, 5.5)
-                    c.setFillColorRGB(0.0, 0.0, 0.0)
-                    c.drawCentredString(center_x, page_height - 686.4, str(y_curr))
-                if m_label:
-                    c.setFont(month_font, 6.0)
-                    c.setFillColorRGB(0.0, 0.0, 0.0)
-                    c.drawCentredString(center_x, page_height - 695.5, m_label)
+            left_x0, left_x1 = bar_x_positions[pair_idx * 2]
+            right_x0, right_x1 = bar_x_positions[pair_idx * 2 + 1]
+            left_center = (left_x0 + left_x1) / 2.0
+            right_center = (right_x0 + right_x1) / 2.0
+            pair_center = (left_x0 + right_x1) / 2.0
+
+            # Year shown for each bar (below the baseline)
+            c.setFont(year_font, 5.5)
+            c.setFillColorRGB(0.0, 0.0, 0.0)
+            if y_prev:
+                c.drawCentredString(left_center, page_height - 686.4, y_prev)
+            if y_curr:
+                c.drawCentredString(right_center, page_height - 686.4, y_curr)
+
+            # Month centered below the pair
+            if m_label:
+                c.setFont(month_font, 6.0)
+                c.setFillColorRGB(0.0, 0.0, 0.0)
+                c.drawCentredString(pair_center, page_height - 695.5, m_label)
 
         PRIOR_YEAR_COLOR = (0.827, 0.827, 0.827)
         CURRENT_YEAR_COLOR = (0.55, 0.55, 0.55)
         HIGHLIGHT_COLOR = (0.15, 0.15, 0.15)
-
-        chart_values = values.get("chart_values", [])
         max_chart_height = axis_y - clear_top
         _valid_vals = [float(v) for v in chart_values if v is not None]
         _tallest = max(_valid_vals) if _valid_vals else 0
         target_fill_ratio = 0.65
         chart_pt_per_unit = ((max_chart_height * target_fill_ratio / _tallest) if _tallest > 0 else 0.2)
 
-        resolved_chart_font = _resolve_font_name(chart_font, registered_fonts)
+        resolved_chart_font = _resolve_font_name("Manrope-Regular", registered_fonts)
         hl_idx = values.get("highlight_bar_index")
 
         for i, raw_value in enumerate(chart_values):

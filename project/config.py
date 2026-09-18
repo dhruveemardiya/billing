@@ -107,3 +107,10 @@ CURRENCY_DECIMAL_PLACES = 2
 DEFAULT_UNIT_VARIATION_PERCENT_MIN = 0.04  # Minimum absolute jitter
 DEFAULT_UNIT_VARIATION_PERCENT_MAX = 0.11  # Maximum absolute jitter
 MINIMUM_DYNAMIC_UNITS = 10                  # Absolute floor for consumed units
+
+# --------------------------------------------------------------------------
+# Direct Billing Generation Limits
+# --------------------------------------------------------------------------
+# Maximum number of billing periods allowed per session.
+# Set to None (or 0) for unlimited billing periods generation.
+MAX_DIRECT_BILL_PERIODS = None

@@ -18,6 +18,7 @@ import zipfile
 from datetime import datetime
 import direct_bill_service
 import billing_engine
+import config
 from app import app
 
 
@@ -116,6 +117,24 @@ class TestDirectBillWorkflow(unittest.TestCase):
         with self.assertRaises(direct_bill_service.DirectBillValidationError) as ctx:
             direct_bill_service.resolve_billing_period_sequence("June 2025", "October 2026", "Monthly")
         self.assertIn("cannot be in the future", str(ctx.exception))
+
+    def test_generation_range_unlimited_and_configurable(self):
+        """Verify that periods exceeding 36 can be generated without error when unlimited, and respects custom limit if set."""
+        # January 2022 to September 2026 Monthly is 57 periods (> 36)
+        periods = direct_bill_service.resolve_billing_period_sequence("January 2022", "September 2026", "Monthly")
+        self.assertEqual(len(periods), 57)
+        self.assertEqual(periods[0], ("January", 2022))
+        self.assertEqual(periods[-1], ("September", 2026))
+
+        # Test custom limit if set in config
+        old_limit = getattr(config, "MAX_DIRECT_BILL_PERIODS", None)
+        try:
+            config.MAX_DIRECT_BILL_PERIODS = 12
+            with self.assertRaises(direct_bill_service.DirectBillValidationError) as ctx:
+                direct_bill_service.resolve_billing_period_sequence("January 2025", "September 2026", "Monthly")
+            self.assertIn("Maximum allowed generation range is 12 billing periods", str(ctx.exception))
+        finally:
+            config.MAX_DIRECT_BILL_PERIODS = old_limit
 
     def test_dynamic_units_variation(self):
         """Verify that dynamic units vary realistically and consecutive periods never duplicate."""

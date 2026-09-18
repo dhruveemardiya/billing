@@ -61,7 +61,94 @@ class PdfMapperChartAxisTests(unittest.TestCase):
             "Thank you for your previous payment of ₹ 809.00 on 20/06/2026 ."
         )
 
+    def test_dynamic_chart_fallback_values_around_reference_units(self):
+        consumer = {
+            "customer_id": "743200550",
+            "billing_month": "August 2026",
+            "reference_units": 700,
+        }
+        bill = BillCalculation(
+            sanctioned_load_kw=1.0,
+            units_consumed=715.0,
+            category_key="residential",
+            energy_charges=564.99,
+            fixed_charges=55.00,
+            fppca_charges=68.07,
+            govt_duty=103.21,
+            total_amount_due=791.27,
+        )
+        values = build_field_values(consumer, bill)
+        chart_vals = values["chart_values"]
+        # Exactly 12 values (6 pairs)
+        self.assertEqual(len(chart_vals), 12)
+        # The current bill's units consumed must be at the final current cycle slot
+        self.assertEqual(chart_vals[-1], 715.0)
+        # All preceding current cycle slots (odd indices) must be populated with realistic dynamic units around 700
+        for i in range(1, 11, 2):
+            self.assertIsNotNone(chart_vals[i])
+            self.assertGreater(chart_vals[i], 0)
+            # Realistic units around 700 (within +-25%)
+            self.assertTrue(500 <= chart_vals[i] <= 900)
+
+    def test_direct_bill_chart_mapping_single_and_batch(self):
+        import direct_bill_service
+        # 1. Single bill test
+        res1 = direct_bill_service.process_direct_bill({
+            "customer_id": "CHARTTEST1",
+            "consumer_name": "Chart Test 1",
+            "address": "101 Ocean Ave, Diu",
+            "mobile_no": "9876543210",
+            "category": "Residential",
+            "billing_cycle": "Monthly",
+            "start_month": "March 2026",
+            "end_month": "March 2026",
+            "start_reading": 5000,
+            "reference_units": 700,
+        })
+        b1 = res1["bills"][0]
+        m_labels1 = b1["consumer"]["chart_month_labels"]
+        vals1 = b1["consumer"]["chart_values"]
+        self.assertEqual(m_labels1, ["Oct", "Nov", "Dec", "Jan", "Feb", "Mar"])
+        self.assertEqual(len(vals1), 12)
+        # Rightmost bar (index 11) is the current bill's actual generated units
+        self.assertEqual(vals1[11], b1["consumer"]["units"])
+        self.assertEqual(b1["consumer"]["highlight_bar_index"], 11)
+
+        # 2. Two bi-monthly bills test
+        res2 = direct_bill_service.process_direct_bill({
+            "customer_id": "CHARTTEST2",
+            "consumer_name": "Chart Test 2",
+            "address": "102 Ocean Ave, Diu",
+            "mobile_no": "9876543210",
+            "category": "Residential",
+            "billing_cycle": "Bi-Monthly",
+            "start_month": "February 2025",
+            "end_month": "April 2025",
+            "start_reading": 5000,
+            "reference_units": 700,
+        })
+        bills2 = res2["bills"]
+        self.assertEqual(len(bills2), 2)
+        # Bill 0 (Feb 2025) has Feb as the rightmost group
+        m_labels_b0 = bills2[0]["consumer"]["chart_month_labels"]
+        self.assertEqual(m_labels_b0, ["Apr", "Jun", "Aug", "Oct", "Dec", "Feb"])
+        vals_b0 = bills2[0]["consumer"]["chart_values"]
+        self.assertEqual(len(vals_b0), 12)
+        self.assertEqual(vals_b0[11], bills2[0]["consumer"]["units"])
+        self.assertEqual(bills2[0]["consumer"]["highlight_bar_index"], 11)
+
+        # Bill 1 (Apr 2025) has Apr as the rightmost group
+        m_labels_b1 = bills2[1]["consumer"]["chart_month_labels"]
+        self.assertEqual(m_labels_b1, ["Jun", "Aug", "Oct", "Dec", "Feb", "Apr"])
+        vals_b1 = bills2[1]["consumer"]["chart_values"]
+        self.assertEqual(len(vals_b1), 12)
+        self.assertEqual(vals_b1[11], bills2[1]["consumer"]["units"])
+        # Bill 1's preceding group (Feb 2025 at index 9) matches Bill 0's actual generated units
+        self.assertEqual(vals_b1[9], bills2[0]["consumer"]["units"])
+        self.assertEqual(bills2[1]["consumer"]["highlight_bar_index"], 11)
+
 
 if __name__ == "__main__":
     unittest.main()
+
 

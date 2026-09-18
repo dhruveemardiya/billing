@@ -14,6 +14,7 @@ import os
 import re
 import uuid
 import random
+import hashlib
 from datetime import datetime, date, timedelta
 from typing import Tuple, Dict, Any, List
 
@@ -160,8 +161,11 @@ def resolve_billing_period_sequence(start_month_str: str, end_month_str: str, bi
     if not periods:
         raise DirectBillValidationError("No valid billing periods could be determined in the selected range.")
 
-    if len(periods) > 36:
-        raise DirectBillValidationError("Maximum allowed generation range is 36 billing periods per session.")
+    max_periods = getattr(config, "MAX_DIRECT_BILL_PERIODS", None)
+    if max_periods and len(periods) > max_periods:
+        raise DirectBillValidationError(
+            f"Maximum allowed generation range is {max_periods} billing periods per session."
+        )
 
     return periods
 
@@ -492,7 +496,8 @@ def build_consumption_history_for_consumer(
         if (m, y_prev) in batch_records:
             val_prev = batch_records[(m, y_prev)]
         else:
-            factor_prev = 0.85 + (hash((cust_id, m, y_prev)) % 30) / 100.0
+            h_prev = int(hashlib.md5(f"{cust_id}_{m}_{y_prev}".encode("utf-8")).hexdigest()[:8], 16)
+            factor_prev = 0.85 + (h_prev % 30) / 100.0
             val_prev = round(base_units * factor_prev)
         history_map[(m, y_prev)] = float(val_prev)
 
@@ -504,7 +509,8 @@ def build_consumption_history_for_consumer(
             # Match the generated bill in this batch exactly!
             history_map[(m, y_curr)] = float(batch_records[(m, y_curr)])
         else:
-            factor_curr = 0.90 + (hash((cust_id, m, y_curr)) % 25) / 100.0
+            h_curr = int(hashlib.md5(f"{cust_id}_{m}_{y_curr}".encode("utf-8")).hexdigest()[:8], 16)
+            factor_curr = 0.90 + (h_curr % 25) / 100.0
             val_curr = round(base_units * factor_curr)
             history_map[(m, y_curr)] = float(val_curr)
 
@@ -583,8 +589,6 @@ def process_direct_bill(form_data: Dict[str, Any], template_path: str = None) ->
     current_prev_payment_amt = round(prev_sim_bill.total_amount_due, 2)
     expected_prev_m, expected_prev_y = prev_period_m, prev_period_y
 
-    batch_chart_periods = [(p[0][:3], str(p[1]), dynamic_units_list[p_i]) for p_i, p in enumerate(periods)]
-
     for idx, (m_name, y_num) in enumerate(periods):
         month_idx = MONTH_NAMES.index(m_name) + 1
         period_month_str = f"{m_name} {y_num}"
@@ -594,31 +598,54 @@ def process_direct_bill(form_data: Dict[str, Any], template_path: str = None) ->
         dates = generate_validated_bill_dates(m_name, y_num)
         ids = generate_identifiers(fixed_meter_no=session_meter_no)
 
-        # Build dynamic chart data from actual generated periods
-        if len(batch_chart_periods) <= 6:
-            active_chart_periods = batch_chart_periods
-            curr_in_window = idx
-        else:
-            start_pos = max(0, idx - 5)
-            active_chart_periods = batch_chart_periods[start_pos : start_pos + 6]
-            curr_in_window = idx - start_pos
+        # Build 6 chronological month groups ending at current bill's month (m_name, y_num)
+        chart_groups = []
+        c_m, c_y = m_name, y_num
+        for _ in range(6):
+            chart_groups.append((c_m, c_y))
+            c_m, c_y = get_previous_billing_period(c_m, c_y, clean["billing_cycle"])
+        chart_groups.reverse()
 
-        chart_m_labels = [cp[0] for cp in active_chart_periods]
+        chart_m_labels = []
         chart_y_labels = []
-        for cp in active_chart_periods:
-            chart_y_labels.extend([cp[1], cp[1]])
         chart_v_list = []
-        for cp in active_chart_periods:
-            chart_v_list.append(None)
-            chart_v_list.append(float(cp[2]))
+        active_chart_periods = []
+        cust_id = clean["customer_id"]
 
-        # Pad up to 6 slots if fewer than 6 periods
-        while len(chart_m_labels) < 6:
-            chart_m_labels.append("")
-            chart_y_labels.extend(["", ""])
-            chart_v_list.extend([None, None])
+        for p_idx, (gm, gy) in enumerate(chart_groups):
+            m_abbr = gm[:3]
+            y_curr = str(gy)
+            y_prev = str(gy - 1)
 
-        hl_bar_idx = 2 * curr_in_window + 1
+            chart_m_labels.append(m_abbr)
+            chart_y_labels.extend([y_prev, y_curr])
+
+            # Left bar: Prior year
+            if (m_abbr, y_prev) in batch_records:
+                val_prev = float(batch_records[(m_abbr, y_prev)])
+            else:
+                h_prev = int(hashlib.md5(f"{cust_id}_{m_abbr}_{y_prev}".encode("utf-8")).hexdigest()[:8], 16)
+                pct_prev = ((h_prev % 21) - 10) / 100.0
+                val_prev = float(max(50, round(clean["reference_units"] * (1.0 + pct_prev))))
+                batch_records[(m_abbr, y_prev)] = val_prev
+
+            # Right bar: Current cycle
+            if p_idx == 5:
+                # Current/latest bill is always the rightmost group, using actual generated units
+                val_curr = float(period_units)
+            elif (m_abbr, y_curr) in batch_records:
+                val_curr = float(batch_records[(m_abbr, y_curr)])
+            else:
+                h_curr = int(hashlib.md5(f"{cust_id}_{m_abbr}_{y_curr}".encode("utf-8")).hexdigest()[:8], 16)
+                pct_curr = ((h_curr % 21) - 10) / 100.0
+                val_curr = float(max(50, round(clean["reference_units"] * (1.0 + pct_curr))))
+                batch_records[(m_abbr, y_curr)] = val_curr
+
+            chart_v_list.append(val_prev)
+            chart_v_list.append(val_curr)
+            active_chart_periods.append((m_abbr, y_curr, val_curr))
+
+        hl_bar_idx = 11  # Current bill is always the rightmost bar (bar 11)
 
         consumer = {
             "customer_id": clean["customer_id"],
@@ -658,7 +685,16 @@ def process_direct_bill(form_data: Dict[str, Any], template_path: str = None) ->
         bill = billing_engine.compute_bill(consumer)
 
         # Build consumption history for chart
-        history = {clean["customer_id"]: {(cp[0], cp[1]): float(cp[2]) for cp in active_chart_periods if cp[0]}}
+        history = {
+            clean["customer_id"]: {
+                (gm[:3], str(gy)): chart_v_list[2 * k + 1]
+                for k, (gm, gy) in enumerate(chart_groups)
+            }
+        }
+        history[clean["customer_id"]].update({
+            (gm[:3], str(gy - 1)): chart_v_list[2 * k]
+            for k, (gm, gy) in enumerate(chart_groups)
+        })
 
         # Section 23: Required debug logging before generating EVERY PDF
         print("\n-------------------")
@@ -724,7 +760,8 @@ def process_direct_bill(form_data: Dict[str, Any], template_path: str = None) ->
                 assert batch_records.get((cp[0], cp[1])) == cp[2], f"Chart value mismatch for {cp[0]} {cp[1]}: {cp[2]}"
 
         safe_month = period_month_str.replace(" ", "_")
-        filename = f"{idx:02d}_Electricity_Bill_{safe_month}_{safe_id}.pdf"
+        pad_width = max(2, len(str(count)))
+        filename = f"{idx:0{pad_width}d}_Electricity_Bill_{safe_month}_{safe_id}.pdf"
         output_path = os.path.join(output_dir, filename)
 
         # Generate single bill PDF (verifies Checks A–J)
@@ -743,6 +780,7 @@ def process_direct_bill(form_data: Dict[str, Any], template_path: str = None) ->
             "output_path": output_path,
             "preview_url": f"/api/preview-bill/{job_id}?filename={filename}&index={idx}",
             "download_url": f"/api/download-bill/{job_id}?filename={filename}&index={idx}",
+            "consumer": consumer,
             "summary": {
                 "customer_id": clean["customer_id"],
                 "consumer_name": clean["consumer_name"],
