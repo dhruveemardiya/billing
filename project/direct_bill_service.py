@@ -542,11 +542,12 @@ def process_direct_bill(form_data: Dict[str, Any], template_path: str = None) ->
     for (m_name, y_num), u in zip(periods, dynamic_units_list):
         batch_records[(m_name[:3], str(y_num))] = float(u)
 
-    # Master template
-    if not template_path or not os.path.exists(template_path):
-        template_path = MASTER_TEMPLATE_PATH
-
-    ts = template_detector.detect_template_structure(template_path)
+    # Master template cache
+    template_cache = {}
+    if template_path and os.path.exists(template_path) and os.path.basename(template_path) not in ("DEMONEWPDF.pdf", "demo.pdf"):
+        custom_template_path = template_path
+    else:
+        custom_template_path = None
 
     # Create session output directory
     job_id = uuid.uuid4().hex[:10]
@@ -764,20 +765,32 @@ def process_direct_bill(form_data: Dict[str, Any], template_path: str = None) ->
         filename = f"{idx:0{pad_width}d}_Electricity_Bill_{safe_month}_{safe_id}.pdf"
         output_path = os.path.join(output_dir, filename)
 
+        # Select PDF template strictly according to this bill's Billing Month & Year:
+        # Before July 2026 -> demo.pdf, July 2026 -> demo.pdf, August 2026 and future -> DEMONEWPDF.pdf
+        if custom_template_path:
+            bill_template = custom_template_path
+        else:
+            bill_template = template_detector.get_template_for_billing_month(period_month_str)
+
+        if bill_template not in template_cache:
+            template_cache[bill_template] = template_detector.detect_template_structure(bill_template)
+        bill_ts = template_cache[bill_template]
+
         # Generate single bill PDF (verifies Checks A–J)
         pdf_generator.generate_bill_pdf(
-            template_path=template_path,
+            template_path=bill_template,
             consumer=consumer,
             bill=bill,
             output_path=output_path,
             consumption_history=history,
-            template_structure=ts,
+            template_structure=bill_ts,
         )
 
         bill_summary = {
             "index": idx,
             "filename": filename,
             "output_path": output_path,
+            "template_used": os.path.basename(bill_template),
             "preview_url": f"/api/preview-bill/{job_id}?filename={filename}&index={idx}",
             "download_url": f"/api/download-bill/{job_id}?filename={filename}&index={idx}",
             "consumer": consumer,

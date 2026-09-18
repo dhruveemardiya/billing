@@ -223,8 +223,10 @@ def preview():
     if template_file and template_file.filename != "" and _allowed_file(template_file.filename, config.ALLOWED_PDF_EXTENSIONS):
         template_path = os.path.join(preview_dir, "template.pdf")
         template_file.save(template_path)
+        is_custom_template = True
     else:
-        template_path = DEFAULT_MASTER_TEMPLATE
+        template_path = None
+        is_custom_template = False
 
     try:
         consumers = excel_reader.read_consumers(excel_path)
@@ -234,6 +236,9 @@ def preview():
         consumer = consumers[0]
         bill = billing_engine.compute_bill(consumer)
         history = excel_reader.build_consumption_history(consumers)
+
+        if not is_custom_template:
+            template_path = template_detector.get_template_for_billing_month(consumer)
 
         ts = template_detector.detect_template_structure(template_path)
         preview_pdf_path = os.path.join(preview_dir, "Preview_Bill.pdf")
@@ -412,32 +417,20 @@ def generate():
     excel_path = os.path.join(job_upload_dir, "data.xlsx")
     excel_file.save(excel_path)
 
-    # Use uploaded template if provided; otherwise use DEMONEWPDF.pdf master template
+    # Use uploaded template if provided; otherwise select template strictly according to billing month & year
     if template_file and template_file.filename != "":
         if not _allowed_file(template_file.filename, config.ALLOWED_PDF_EXTENSIONS):
             return jsonify({"error": "Template must be a .pdf file."}), 400
         template_path = os.path.join(job_upload_dir, "template.pdf")
         template_file.save(template_path)
-    else:
-        template_path = DEFAULT_MASTER_TEMPLATE
-
-    template_display_name = template_file.filename if (template_file and template_file.filename != "") else os.path.basename(DEFAULT_MASTER_TEMPLATE)
-
-    # 1. Detect template structure & fields dynamically
-    try:
+        is_custom_template = True
+        template_display_name = template_file.filename
         template_structure = template_detector.detect_template_structure(template_path)
         template_structure.template_name = template_display_name
-    except Exception as exc:
-        return jsonify({"error": f"Could not analyze template structure: {exc}"}), 400
-
-    # 2. Check mapping & produce warnings
-    try:
-        mapping_report = mapping_engine.analyze_mapping(excel_path, template_structure)
-    except Exception as exc:
-        return jsonify({"error": f"Could not analyze column mappings: {exc}"}), 400
-
-    if not mapping_report.is_valid:
-        return jsonify({"error": "Invalid Excel data", "details": mapping_report.errors}), 400
+    else:
+        template_path = None
+        is_custom_template = False
+        template_display_name = "DEMONEWPDF.pdf"
 
     try:
         consumers = excel_reader.read_consumers(excel_path)
@@ -446,6 +439,20 @@ def generate():
 
     if not consumers:
         return jsonify({"error": "No usable rows found in the Excel file."}), 400
+
+    if not is_custom_template:
+        initial_template = template_detector.get_template_for_billing_month(consumers[0])
+        template_structure = template_detector.detect_template_structure(initial_template)
+        template_structure.template_name = os.path.basename(initial_template)
+
+    # Check mapping & produce warnings
+    try:
+        mapping_report = mapping_engine.analyze_mapping(excel_path, template_structure)
+    except Exception as exc:
+        return jsonify({"error": f"Could not analyze column mappings: {exc}"}), 400
+
+    if not mapping_report.is_valid:
+        return jsonify({"error": "Invalid Excel data", "details": mapping_report.errors}), 400
 
     consumption_history = excel_reader.build_consumption_history(consumers)
 
@@ -460,6 +467,7 @@ def generate():
     previous_total = None
     previous_due_date = None
     used_filenames = set()
+    template_cache = {}
 
     for index, consumer in enumerate(consumers, start=1):
         try:
@@ -481,10 +489,19 @@ def generate():
             )
             output_path = os.path.join(job_output_dir, output_filename)
 
+            if is_custom_template:
+                bill_template = template_path
+                bill_ts = template_structure
+            else:
+                bill_template = template_detector.get_template_for_billing_month(consumer)
+                if bill_template not in template_cache:
+                    template_cache[bill_template] = template_detector.detect_template_structure(bill_template)
+                bill_ts = template_cache[bill_template]
+
             pdf_generator.generate_bill_pdf(
-                template_path, consumer, bill, output_path,
+                bill_template, consumer, bill, output_path,
                 consumption_history=consumption_history,
-                template_structure=template_structure,
+                template_structure=bill_ts,
             )
             generated_files.append(output_filename)
         except Exception as exc:

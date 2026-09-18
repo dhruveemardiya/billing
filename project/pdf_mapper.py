@@ -291,7 +291,7 @@ def build_field_values(consumer: dict, bill, consumption_history: dict = None, t
         "customer_id": cust_id,
         "sanctioned_load": f"{bill.sanctioned_load_kw:.2f} kW",
         "bill_date": bill_date_str,
-        "substation": str(consumer.get("substation") or ("66 KV MALALA SS" if is_modern else "")),
+        "substation": str(consumer.get("substation") or "66 KV MALALA SS"),
         "previous_payment_line": (
             f"Thank you for your previous payment of ₹ {round(prev_amt):,.2f} on {previous_payment_date} ."
             if prev_amt and previous_payment_date else ""
@@ -328,7 +328,7 @@ def build_field_values(consumer: dict, bill, consumption_history: dict = None, t
         "bd_total_amount_due": _format_currency(bill.total_amount_due),
         "bd_delay_surcharge": _format_currency(bill.delay_surcharge),
         "bd_net_amount_after_due": _format_currency(bill.amount_after_due_date),
-        "coupon_group_no": str(consumer.get("group_no") or ("DI070010" if is_modern else "")),
+        "coupon_group_no": str(consumer.get("group_no") or "DI070010"),
         "coupon_customer_id": cust_id,
         "coupon_due_date": due_date_str,
         "coupon_amount_upto_due": (f"₹ {_format_currency(bill.total_amount_due)}" if is_modern else _format_currency(bill.total_amount_due)),

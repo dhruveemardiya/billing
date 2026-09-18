@@ -10,7 +10,7 @@ from reportlab.lib.colors import HexColor
 from billing_message import draw_billing_message
 import font_manager
 import pdf_mapper
-from template_detector import detect_template_structure, TemplateStructure, Field
+from template_detector import detect_template_structure, TemplateStructure, Field, get_template_for_billing_month
 
 
 def _resolve_font_name(requested_font: str, registered_fonts: dict) -> str:
@@ -68,7 +68,7 @@ def _resolve_font_name(requested_font: str, registered_fonts: dict) -> str:
     return requested_font
 
 
-def _strip_template_donut_and_leaders(page, reader):
+def _strip_template_donut_and_leaders(page, reader, layout_type: str = "modern_manrope"):
     """Remove static background donut arcs and leader lines from the template PDF page content stream."""
     contents_obj = page.get("/Contents")
     if not contents_obj:
@@ -77,32 +77,39 @@ def _strip_template_donut_and_leaders(page, reader):
     stream = ContentStream(contents_obj, reader)
 
     new_ops = []
-    for operands, op in stream.operations:
-        op_str = op.decode() if isinstance(op, bytes) else op
-        nums = [float(x) for x in operands if isinstance(x, (int, float))]
+    if layout_type == "classic_neurial":
+        # In demo.pdf, operations 711 to 789 contain static donut arcs, leader lines, and old texts
+        for i, (operands, op) in enumerate(stream.operations):
+            if 711 <= i <= 789:
+                continue
+            new_ops.append((operands, op))
+    else:
+        for operands, op in stream.operations:
+            op_str = op.decode() if isinstance(op, bytes) else op
+            nums = [float(x) for x in operands if isinstance(x, (int, float))]
 
-        # Check if this op is part of the old donut stroke (w=20 and coords in donut)
-        is_donut_arc = (
-            op_str in ("m", "c", "S") and
-            any(406 <= n <= 484 for n in nums) and
-            any(348 <= n <= 426 for n in nums)
-        )
+            # Check if this op is part of the old donut stroke (w=20 and coords in donut)
+            is_donut_arc = (
+                op_str in ("m", "c", "S") and
+                any(406 <= n <= 484 for n in nums) and
+                any(348 <= n <= 426 for n in nums)
+            )
 
-        # Check if this op is one of the old leader lines
-        is_old_leader = False
-        if op_str in ("m", "l"):
-            if any(abs(n - 409.507) < 0.01 for n in nums) and any(488 <= n <= 520 for n in nums):
-                is_old_leader = True
-            elif any(abs(n - 429.507) < 0.01 for n in nums) and any(483 <= n <= 520 for n in nums):
-                is_old_leader = True
-            elif any(abs(n - 449.507) < 0.01 for n in nums) and any(456 <= n <= 520 for n in nums):
-                is_old_leader = True
-            elif any(abs(n - 342.454) < 0.01 for n in nums) and any(374 <= n <= 425 for n in nums):
-                is_old_leader = True
+            # Check if this op is one of the old leader lines
+            is_old_leader = False
+            if op_str in ("m", "l"):
+                if any(abs(n - 409.507) < 0.01 for n in nums) and any(488 <= n <= 520 for n in nums):
+                    is_old_leader = True
+                elif any(abs(n - 429.507) < 0.01 for n in nums) and any(483 <= n <= 520 for n in nums):
+                    is_old_leader = True
+                elif any(abs(n - 449.507) < 0.01 for n in nums) and any(456 <= n <= 520 for n in nums):
+                    is_old_leader = True
+                elif any(abs(n - 342.454) < 0.01 for n in nums) and any(374 <= n <= 425 for n in nums):
+                    is_old_leader = True
 
-        if is_donut_arc or is_old_leader:
-            continue
-        new_ops.append((operands, op))
+            if is_donut_arc or is_old_leader:
+                continue
+            new_ops.append((operands, op))
 
     stream.operations = new_ops
     page[NameObject("/Contents")] = stream
@@ -114,15 +121,125 @@ def _draw_donut_chart(c, page_height, values, registered_fonts, template_structu
     bg = (1.0, 1.0, 1.0) if layout == "modern_manrope" else pdf_mapper.CREAM_BG
 
     if layout == "classic_neurial":
-        cx = 447.6
-        cy = page_height - 452.6
-        R_outer = 38.0
-        R_inner = 24.5
-    else:
-        cx = 445.0
-        cy = page_height - 455.0
-        R_outer = 49.0
-        R_inner = 29.0
+        cx = 440.0
+        cy = page_height - 448.0
+        R_outer = 53.0
+        R_inner = 35.0
+
+        try:
+            energy_amt = float(str(values.get("donut_energy_charges", 0)).replace(",", "").lstrip("₹").strip())
+        except (ValueError, TypeError):
+            energy_amt = 0.0
+        try:
+            fixed_amt = float(str(values.get("donut_fixed_charges", 0)).replace(",", "").lstrip("₹").strip())
+        except (ValueError, TypeError):
+            fixed_amt = 0.0
+        try:
+            fppas_amt = float(str(values.get("donut_fppca_charges", 0)).replace(",", "").lstrip("₹").strip())
+        except (ValueError, TypeError):
+            fppas_amt = 0.0
+
+        comp_total = energy_amt + fixed_amt + fppas_amt
+        calc_total = comp_total if comp_total > 0 else 1.0
+
+        fixed_deg = (fixed_amt / calc_total) * 360.0
+        energy_deg = (energy_amt / calc_total) * 360.0
+        fppas_deg = (fppas_amt / calc_total) * 360.0
+
+        fixed_start = 315.5
+        energy_start = fixed_start + fixed_deg
+        fppas_start = energy_start + energy_deg
+
+        slices = [
+            {"name": "Fixed charges", "amount": fixed_amt, "start": fixed_start, "extent": fixed_deg, "color": "#CCD1D6"},
+            {"name": "Energy charges", "amount": energy_amt, "start": energy_start, "extent": energy_deg, "color": "#1F2327"},
+            {"name": "FPPCA charges", "amount": fppas_amt, "start": fppas_start, "extent": fppas_deg, "color": "#5F666D"},
+        ]
+
+        # Draw wedges
+        for s in slices:
+            if s["extent"] > 0.001:
+                c.setFillColor(HexColor(s["color"]))
+                c.wedge(cx - R_outer, cy - R_outer, cx + R_outer, cy + R_outer, s["start"], s["extent"], stroke=0, fill=1)
+
+        # Draw thin dividers (1.2 pt CREAM_BG lines at slice boundaries)
+        c.setStrokeColorRGB(*bg)
+        c.setLineWidth(1.2)
+        for s in slices:
+            rad = math.radians(s["start"])
+            c.line(cx + (R_inner - 0.5) * math.cos(rad), cy + (R_inner - 0.5) * math.sin(rad),
+                   cx + (R_outer + 0.5) * math.cos(rad), cy + (R_outer + 0.5) * math.sin(rad))
+
+        # Inner circular mask hole
+        c.setFillColorRGB(*bg)
+        c.circle(cx, cy, R_inner, stroke=0, fill=1)
+
+        # Center total amount text (shows actual bill total amount due)
+        total_due = float(values.get("_bill_total_amount_due") or comp_total)
+        c.setFillColorRGB(0, 0, 0)
+        center_font = _resolve_font_name("NeurialGrotesk-Bold", registered_fonts)
+        clean_total = f"{total_due:,.2f}"
+        rupee_font = "SymbolMT" if "SymbolMT" in registered_fonts else center_font
+        c.setFont(rupee_font, 9.0)
+        c.drawCentredString(cx, cy + 2.5, "₹")
+        c.setFont(center_font, 8.5)
+        c.drawCentredString(cx, cy - 8.0, clean_total)
+
+        # Horizontal leader lines matching demo.pdf
+        c.setStrokeColorRGB(0.2, 0.2, 0.2)
+        c.setLineWidth(0.4)
+        ty_energy = page_height - 435.07
+        c.line(cx - R_outer, ty_energy, 370.0, ty_energy)
+        ty_fixed = page_height - 449.27
+        c.line(cx + R_outer, ty_fixed, 510.0, ty_fixed)
+        ty_fppca = page_height - 498.32
+        c.line(467.51, ty_fppca, 510.0, ty_fppca)
+
+        # Labels & Amounts cleanly formatted
+        font_bold = _resolve_font_name("NeurialGrotesk-Bold", registered_fonts)
+        font_reg = _resolve_font_name("NeurialGrotesk-Regular", registered_fonts)
+
+        def _draw_donut_label_right(x_right, y, amt):
+            amt_str = f"{amt:,.2f}"
+            c.setFont(font_bold, 8.0)
+            aw = c.stringWidth(amt_str, font_bold, 8.0)
+            c.setFont(rupee_font, 8.0)
+            rw = c.stringWidth("₹", rupee_font, 8.0)
+            total_w = rw + aw
+            c.drawString(x_right - total_w, y, "₹")
+            c.setFont(font_bold, 8.0)
+            c.drawString(x_right - aw, y, amt_str)
+
+        def _draw_donut_label_left(x_left, y, amt):
+            amt_str = f"{amt:,.2f}"
+            c.setFont(rupee_font, 8.0)
+            c.drawString(x_left, y, "₹")
+            rw = c.stringWidth("₹", rupee_font, 8.0)
+            c.setFont(font_bold, 8.0)
+            c.drawString(x_left + rw, y, amt_str)
+
+        # Energy charges on left (right-aligned to 365)
+        _draw_donut_label_right(365.0, page_height - 438.0, energy_amt)
+        c.setFont(font_reg, 7.0)
+        c.drawRightString(365.0, page_height - 446.5, "Energy")
+        c.drawRightString(365.0, page_height - 454.5, "Charges")
+
+        # Fixed charges on right (left-aligned at 515)
+        _draw_donut_label_left(515.0, page_height - 439.0, fixed_amt)
+        c.setFont(font_reg, 7.0)
+        c.drawString(515.0, page_height - 447.5, "Fixed Charges")
+
+        # FPPCA charges on right (left-aligned at 515)
+        _draw_donut_label_left(515.0, page_height - 501.0, fppas_amt)
+        c.setFont(font_reg, 7.0)
+        c.drawString(515.0, page_height - 509.5, "FPPCA Charges")
+
+        return
+
+    cx = 445.0
+    cy = page_height - 455.0
+    R_outer = 49.0
+    R_inner = 29.0
 
     try:
         govt_amt = float(str(values.get("donut_govt_duty", 0)).replace(",", "").lstrip("₹").strip())
@@ -253,6 +370,10 @@ def _build_page_overlay(page_width, page_height, fields, values, registered_font
             continue
         if field.key == "donut_total_charges":
             continue
+        if template_structure.layout_type == "classic_neurial" and field.key in (
+            "donut_energy_charges", "donut_fixed_charges", "donut_fppca_charges"
+        ):
+            continue
         x1 = field.x1 if field.x1 is not None else field.x0 + 150
         rect_x0 = field.x0 - field.pad
         rect_x1 = x1 + field.pad
@@ -279,57 +400,62 @@ def _build_page_overlay(page_width, page_height, fields, values, registered_font
         if field.key == "donut_total_charges":
             # Drawn dynamically in _draw_donut_chart
             continue
-
-        if field.key == "headline_due_amount":
-            clean_amt = text.lstrip("₹").strip()
-            c.setFillColorRGB(0, 0, 0)
-            target_font = _resolve_font_name("Manrope-Bold", registered_fonts)
-            c.setFont(target_font, 24.0)
-            baseline_y = page_height - 353.1
-            try:
-                c.drawString(33.0, baseline_y, f"₹{clean_amt}")
-            except Exception:
-                rupee_font = "SymbolMT" if "SymbolMT" in registered_fonts else target_font
-                c.setFont(rupee_font, 24.0)
-                c.drawString(33.0, baseline_y, "₹")
-                rw = c.stringWidth("₹", rupee_font, 24.0)
-                c.setFont(target_font, 24.0)
-                c.drawString(33.0 + rw, baseline_y, clean_amt)
+        if template_structure.layout_type == "classic_neurial" and field.key in (
+            "donut_energy_charges", "donut_fixed_charges", "donut_fppca_charges"
+        ):
             continue
 
-        if field.key == "previous_payment_line":
-            if text:
-                c.setFillColorRGB(0, 0, 0)
-                norm_font = _resolve_font_name("Manrope-Regular", registered_fonts)
-                c.setFont(norm_font, 7.5)
-                c.drawString(250.0, page_height - 304.5, text)
-                c.drawString(250.0, page_height - 315.5, "Payment received through Billdesk - NetBanking.")
-            continue
-
-        if field.key in ("coupon_group_no", "coupon_customer_id", "coupon_due_date", "coupon_amount_upto_due"):
-            c.setFillColorRGB(0, 0, 0)
-            coupon_font = _resolve_font_name("Manrope-Medium", registered_fonts)
-            c.setFont(coupon_font, 6.0)
-            coupon_baseline = page_height - 820.0
-            if field.key == "coupon_group_no":
-                c.drawString(96.0, coupon_baseline, text or "DI070010")
-            elif field.key == "coupon_customer_id":
-                c.drawString(250.0, coupon_baseline, text)
-            elif field.key == "coupon_due_date":
-                c.drawString(377.0, coupon_baseline, text)
-            elif field.key == "coupon_amount_upto_due":
+        if template_structure.layout_type == "modern_manrope":
+            if field.key == "headline_due_amount":
                 clean_amt = text.lstrip("₹").strip()
-                amt_str = f"₹{clean_amt}"
+                c.setFillColorRGB(0, 0, 0)
+                target_font = _resolve_font_name("Manrope-Bold", registered_fonts)
+                c.setFont(target_font, 24.0)
+                baseline_y = page_height - 353.1
                 try:
-                    c.drawString(526.0, coupon_baseline, amt_str)
+                    c.drawString(33.0, baseline_y, f"₹{clean_amt}")
                 except Exception:
-                    rupee_font = "SymbolMT" if "SymbolMT" in registered_fonts else coupon_font
-                    c.setFont(rupee_font, 6.0)
-                    c.drawString(526.0, coupon_baseline, "₹")
-                    rw = c.stringWidth("₹", rupee_font, 6.0)
-                    c.setFont(coupon_font, 6.0)
-                    c.drawString(526.0 + rw, coupon_baseline, clean_amt)
-            continue
+                    rupee_font = "SymbolMT" if "SymbolMT" in registered_fonts else target_font
+                    c.setFont(rupee_font, 24.0)
+                    c.drawString(33.0, baseline_y, "₹")
+                    rw = c.stringWidth("₹", rupee_font, 24.0)
+                    c.setFont(target_font, 24.0)
+                    c.drawString(33.0 + rw, baseline_y, clean_amt)
+                continue
+
+            if field.key == "previous_payment_line":
+                if text:
+                    c.setFillColorRGB(0, 0, 0)
+                    norm_font = _resolve_font_name("Manrope-Regular", registered_fonts)
+                    c.setFont(norm_font, 7.5)
+                    c.drawString(250.0, page_height - 304.5, text)
+                    c.drawString(250.0, page_height - 315.5, "Payment received through Billdesk - NetBanking.")
+                continue
+
+            if field.key in ("coupon_group_no", "coupon_customer_id", "coupon_due_date", "coupon_amount_upto_due"):
+                c.setFillColorRGB(0, 0, 0)
+                coupon_font = _resolve_font_name("Manrope-Medium", registered_fonts)
+                c.setFont(coupon_font, 6.0)
+                coupon_baseline = page_height - 820.0
+                if field.key == "coupon_group_no":
+                    c.drawString(96.0, coupon_baseline, text or "DI070010")
+                elif field.key == "coupon_customer_id":
+                    c.drawString(250.0, coupon_baseline, text)
+                elif field.key == "coupon_due_date":
+                    c.drawString(377.0, coupon_baseline, text)
+                elif field.key == "coupon_amount_upto_due":
+                    clean_amt = text.lstrip("₹").strip()
+                    amt_str = f"₹{clean_amt}"
+                    try:
+                        c.drawString(526.0, coupon_baseline, amt_str)
+                    except Exception:
+                        rupee_font = "SymbolMT" if "SymbolMT" in registered_fonts else coupon_font
+                        c.setFont(rupee_font, 6.0)
+                        c.drawString(526.0, coupon_baseline, "₹")
+                        rw = c.stringWidth("₹", rupee_font, 6.0)
+                        c.setFont(coupon_font, 6.0)
+                        c.drawString(526.0 + rw, coupon_baseline, clean_amt)
+                continue
 
         x1 = field.x1 if field.x1 is not None else field.x0 + 150
 
@@ -341,6 +467,8 @@ def _build_page_overlay(page_width, page_height, fields, values, registered_font
             font_size -= 0.5
         c.setFont(resolved_font, font_size)
         baseline_y = page_height - field.bottom
+        if template_structure.layout_type == "classic_neurial" and field.key.startswith("coupon_"):
+            baseline_y += 1.0
 
         is_bold_field = "Bold" in field.font or "Extrabold" in field.font
         has_rupee = text.startswith("₹")
@@ -631,11 +759,14 @@ def validate_bill_generation_data(values: dict, bill, consumer: dict, consumptio
     print(f"[PRE-FLIGHT VALIDATION] Successfully verified checks A-J for Customer {consumer.get('customer_id')}")
 
 
-def generate_bill_pdf(template_path: str, consumer: dict, bill, output_path: str,
+def generate_bill_pdf(template_path: Optional[str] = None, consumer: dict = None, bill = None, output_path: str = "",
                       consumption_history: dict = None, template_structure: Optional[TemplateStructure] = None) -> str:
     """
     Generates a single filled PDF invoice for one consumer record using the specified template PDF.
     """
+    if not template_path:
+        template_path = get_template_for_billing_month(consumer)
+
     if template_structure is None:
         template_structure = detect_template_structure(template_path)
 
@@ -654,8 +785,8 @@ def generate_bill_pdf(template_path: str, consumer: dict, bill, output_path: str
         page_width = float(page.mediabox.width)
         page_height = float(page.mediabox.height)
 
-        if page_index == 0 and template_structure.layout_type == "modern_manrope":
-            _strip_template_donut_and_leaders(page, reader)
+        if page_index == 0 and template_structure.layout_type in ("modern_manrope", "classic_neurial"):
+            _strip_template_donut_and_leaders(page, reader, template_structure.layout_type)
 
         page_fields = fields_by_page.get(page_index, [])
         if page_fields:

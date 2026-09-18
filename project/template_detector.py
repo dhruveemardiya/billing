@@ -12,11 +12,157 @@ Supports:
 
 import os
 import re
+from datetime import datetime, date
 from dataclasses import dataclass, field
 from typing import Dict, List, Optional, Tuple
 
 import pdfplumber
 import pypdfium2 as pdfium
+
+PROJECT_DIR = os.path.dirname(os.path.abspath(__file__))
+CLASSIC_TEMPLATE_PATH = os.path.join(PROJECT_DIR, "demo.pdf")
+MODERN_TEMPLATE_PATH = os.path.join(PROJECT_DIR, "DEMONEWPDF.pdf")
+
+MONTH_NAME_TO_NUM = {
+    "jan": 1, "january": 1,
+    "feb": 2, "february": 2,
+    "mar": 3, "march": 3,
+    "apr": 4, "april": 4,
+    "may": 5,
+    "jun": 6, "june": 6,
+    "jul": 7, "july": 7,
+    "aug": 8, "august": 8,
+    "sep": 9, "september": 9, "sept": 9,
+    "oct": 10, "october": 10,
+    "nov": 11, "november": 11,
+    "dec": 12, "december": 12,
+}
+
+
+def parse_billing_month_year(val) -> Tuple[Optional[int], Optional[int]]:
+    """
+    Extracts (month_num, year_num) where month_num is 1..12 and year_num is 4-digit int.
+    Supports consumer dicts, (month, year) tuples, strings ('July 2026', '2026-08', etc.), and date objects.
+    """
+    if val is None:
+        return None, None
+
+    # 1. Consumer dict
+    if isinstance(val, dict):
+        for key in ("billing_month", "bill_date", "reading_date", "due_date"):
+            raw = val.get(key)
+            if raw:
+                m, y = parse_billing_month_year(raw)
+                if m is not None and y is not None:
+                    return m, y
+        return None, None
+
+    # 2. Tuple / List: (month, year) or (year, month)
+    if isinstance(val, (list, tuple)) and len(val) >= 2:
+        v0, v1 = val[0], val[1]
+        m, y = None, None
+        if isinstance(v0, int) and 1 <= v0 <= 12 and isinstance(v1, int) and v1 > 1900:
+            m, y = v0, v1
+        elif isinstance(v1, int) and 1 <= v1 <= 12 and isinstance(v0, int) and v0 > 1900:
+            y, m = v0, v1
+        else:
+            s0 = str(v0).strip().lower()
+            if s0 in MONTH_NAME_TO_NUM:
+                m = MONTH_NAME_TO_NUM[s0]
+                try:
+                    y = int(str(v1).strip())
+                except ValueError:
+                    pass
+            else:
+                s1 = str(v1).strip().lower()
+                if s1 in MONTH_NAME_TO_NUM:
+                    m = MONTH_NAME_TO_NUM[s1]
+                    try:
+                        y = int(str(v0).strip())
+                    except ValueError:
+                        pass
+        if m is not None and y is not None:
+            return m, y
+
+    # 3. datetime / date object
+    if hasattr(val, "year") and hasattr(val, "month"):
+        return val.month, val.year
+
+    # 4. String
+    text = str(val).strip()
+    if not text:
+        return None, None
+
+    # ISO format: YYYY-MM or YYYY/MM
+    m_iso = re.search(r"^(\d{4})[\/\-](\d{1,2})$", text)
+    if m_iso:
+        y = int(m_iso.group(1))
+        m = int(m_iso.group(2))
+        if 1 <= m <= 12:
+            return m, y
+
+    # Slash/hyphen format: MM/YYYY or MM-YYYY
+    m_slash = re.search(r"^(\d{1,2})[\/\-](\d{4})$", text)
+    if m_slash:
+        m = int(m_slash.group(1))
+        y = int(m_slash.group(2))
+        if 1 <= m <= 12:
+            return m, y
+
+    # Token-based scan
+    tokens = [t.strip(",._/") for t in re.split(r"[\s\-_/]+", text) if t.strip(",._/")]
+    month_val = None
+    year_val = None
+    for t in tokens:
+        tl = t.lower()
+        if tl in MONTH_NAME_TO_NUM and month_val is None:
+            month_val = MONTH_NAME_TO_NUM[tl]
+        elif t.isdigit():
+            if len(t) == 4 and year_val is None:
+                year_val = int(t)
+            elif len(t) == 2 and year_val is None:
+                year_val = 2000 + int(t)
+
+    if month_val is not None and year_val is not None:
+        return month_val, year_val
+
+    # Date string fallback
+    for fmt in ("%d/%m/%Y", "%d-%m-%Y", "%Y-%m-%d", "%d-%b-%Y", "%d/%b/%Y", "%b %Y", "%B %Y"):
+        try:
+            dt = datetime.strptime(text, fmt)
+            return dt.month, dt.year
+        except Exception:
+            pass
+
+    return None, None
+
+
+def get_template_for_billing_month(billing_period_or_consumer) -> str:
+    """
+    Selects the PDF template strictly according to the bill's Billing Month & Year:
+      - Before July 2026 -> existing demo.pdf
+      - July 2026 -> existing demo.pdf
+      - August 2026 -> DEMONEWPDF.pdf
+      - August 2026 and all future months -> DEMONEWPDF.pdf
+
+    The selection uses the actual billing month of each generated bill.
+    """
+    month_num, year_num = parse_billing_month_year(billing_period_or_consumer)
+
+    if year_num is not None and month_num is not None:
+        if (year_num, month_num) < (2026, 8):
+            if os.path.exists(CLASSIC_TEMPLATE_PATH):
+                return CLASSIC_TEMPLATE_PATH
+            return MODERN_TEMPLATE_PATH
+        else:
+            if os.path.exists(MODERN_TEMPLATE_PATH):
+                return MODERN_TEMPLATE_PATH
+            return CLASSIC_TEMPLATE_PATH
+
+    if os.path.exists(MODERN_TEMPLATE_PATH):
+        return MODERN_TEMPLATE_PATH
+    return CLASSIC_TEMPLATE_PATH
+
 
 @dataclass
 class Field:
@@ -172,6 +318,7 @@ def _get_classic_demo_fields() -> List[Field]:
     CREAM_BG = (247 / 255, 242 / 255, 238 / 255)
     ORANGE_BG = (1.0, 0.54902, 0.0)
     MESSAGE_BG = (0.90980, 0.90588, 0.88235)
+    WHITE_BG = (1.0, 1.0, 1.0)
 
     return [
         Field("area", 0, 275.0, 34.1, 41.1, x1=340, font="NeurialGrotesk-Bold", size=7.0, bg=CREAM_BG),
@@ -193,7 +340,7 @@ def _get_classic_demo_fields() -> List[Field]:
         Field("bill_date", 0, 316.6, 244.3, 252.3, x1=430, font="NeurialGrotesk-Regular", size=8.0, bg=CREAM_BG),
         Field("substation", 0, 435.4, 244.3, 252.3, x1=543, font="NeurialGrotesk-Regular", size=8.0, bg=CREAM_BG),
         Field("previous_payment_line", 0, 198.8, 294.3, 303.4, x1=543, size=9.0, bg=ORANGE_BG),
-        Field("headline_due_amount", 0, 53.5, 332.3, 356.3, x1=190, font="NeurialGrotesk-Bold", size=24, pad=2.0, bg=ORANGE_BG),
+        Field("headline_due_amount", 0, 41.8, 332.3, 356.3, x1=190, font="NeurialGrotesk-Bold", size=24, pad=2.0, bg=ORANGE_BG),
         Field("due_by_date", 0, 198.8, 343.2, 351.2, x1=300, font="NeurialGrotesk-Bold", size=8.0, bg=ORANGE_BG),
         Field("security_deposit_held", 0, 321.5, 345.3, 353.4, x1=430, font="NeurialGrotesk-Regular", size=8.0, pad=0.5, bg=ORANGE_BG),
         Field("additional_security", 0, 439.0, 345.3, 353.4, x1=543, font="NeurialGrotesk-Regular", size=8.0, pad=0.5, bg=ORANGE_BG),
@@ -221,11 +368,11 @@ def _get_classic_demo_fields() -> List[Field]:
         Field("bd_total_amount_due", 1, 254.6, 213.3, 220.3, x1=277.2, align="right", font="NeurialGrotesk-Bold", size=7.0),
         Field("bd_delay_surcharge", 1, 273.2, 232.3, 239.3, x1=277.2, align="right", size=7.0),
         Field("bd_net_amount_after_due", 1, 255.9, 251.3, 258.3, x1=277.2, align="right", font="NeurialGrotesk-Bold", size=7.0),
-        Field("coupon_group_no", 1, 44.9, 820.6, 826.6, x1=130, font="NeurialGrotesk-Extrabold", size=6.0),
-        Field("coupon_customer_id", 1, 134.2, 820.6, 826.6, x1=235, font="NeurialGrotesk-Extrabold", size=6.0),
-        Field("coupon_due_date", 1, 239.8, 820.6, 826.6, x1=340, font="NeurialGrotesk-Extrabold", size=6.0),
-        Field("coupon_amount_upto_due", 1, 367.8, 820.6, 826.6, x1=460, font="NeurialGrotesk-Extrabold", size=6.0),
-        Field("coupon_amount_after_due", 1, 496.2, 820.6, 826.6, x1=543, font="NeurialGrotesk-Extrabold", size=6.0),
+        Field("coupon_group_no", 1, 44.9, 820.6, 826.6, x1=120.0, pad=0.5, font="NeurialGrotesk-Extrabold", size=6.0, bg=WHITE_BG),
+        Field("coupon_customer_id", 1, 134.2, 820.6, 826.6, x1=230.0, pad=0.5, font="NeurialGrotesk-Extrabold", size=6.0, bg=WHITE_BG),
+        Field("coupon_due_date", 1, 239.8, 820.6, 826.6, x1=330.0, pad=0.5, font="NeurialGrotesk-Extrabold", size=6.0, bg=WHITE_BG),
+        Field("coupon_amount_upto_due", 1, 367.8, 820.6, 826.6, x1=460.0, pad=0.5, font="NeurialGrotesk-Extrabold", size=6.0, bg=WHITE_BG),
+        Field("coupon_amount_after_due", 1, 496.2, 820.6, 826.6, x1=550.0, pad=0.5, font="NeurialGrotesk-Extrabold", size=6.0, bg=WHITE_BG),
     ]
 
 
@@ -326,22 +473,24 @@ def detect_template_structure(template_path: str) -> TemplateStructure:
                 if fn:
                     font_names.add(fn)
 
-    # Check for DEMONEWPDF.pdf characteristics:
-    # 1. Contains "Manrope" in embedded font names OR filename contains "demonew" or "new"
-    # 2. Contains "BHAVNABEN" or "NON RGP" or "6703247" or "HDFC0000240"
+    # Distinguish modern (DEMONEWPDF.pdf) from classic (demo.pdf):
+    # DEMONEWPDF.pdf uniquely contains "bhavnaben", "vasna", "demonew", or HCE-prefixed Manrope fonts.
     is_new_demo = (
-        any("Manrope" in fn for fn in font_names) or
         "demonew" in filename or
         "bhavnaben" in sample_text.lower() or
         "non rgp" in sample_text.lower() or
-        "vasna" in sample_text.lower()
+        "vasna" in sample_text.lower() or
+        any("Manrope-ExtraBold" in fn or "HCEHPK" in fn for fn in font_names)
     )
 
+    # Classic demo.pdf uniquely features "ramaji", "vanakbara", "diu", or unprefixed NeurialGrotesk fonts.
     is_classic_demo = (
         not is_new_demo and (
-            any("NeurialGrotesk" in fn for fn in font_names) or
+            filename == "demo.pdf" or
             "ramaji" in sample_text.lower() or
-            "demo.pdf" in filename
+            "vanakbara" in sample_text.lower() or
+            "diu" in sample_text.lower() or
+            any(fn.startswith("NeurialGrotesk") for fn in font_names)
         )
     )
 
