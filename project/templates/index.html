@@ -1445,7 +1445,6 @@
                   <div class="form-group">
                     <label for="direct_start_month" class="form-input-label">
                       <span>Start Billing Month <span class="req-star">*</span></span>
-                      <span class="badge-tag highlight" id="start-month-display">June 2025</span>
                     </label>
                     <input type="month" id="direct_start_month" name="start_month" class="form-control" value="2025-06" min="2021-01" required>
                     <span class="field-hint">Month + Year calendar picker · Max: Current Month</span>
@@ -1455,11 +1454,8 @@
                   <div class="form-group">
                     <label for="direct_end_month" class="form-input-label">
                       <span>End Billing Month <span style="font-size: 0.72rem; font-weight: normal; color: var(--text-muted);">(Optional)</span></span>
-                      <span class="badge-tag" id="end-month-badge">Single or Range</span>
                     </label>
-                    <select id="direct_end_month" name="end_month" class="form-control">
-                      <!-- Populated dynamically via JS -->
-                    </select>
+                    <input type="month" id="direct_end_month" name="end_month" class="form-control" value="2025-06" min="2021-01">
                     <span class="field-hint">Defaults to Start Month (Single Bill). Select later month for multi-month range.</span>
                   </div>
                 </div>
@@ -1818,9 +1814,8 @@
     /* Direct Billing: Calendar Month Picker, Dynamic End Month & Live Bill Count */
     const cycleSelect = document.getElementById("direct_billing_cycle");
     const startMonthInput = document.getElementById("direct_start_month");
-    const endMonthSelect = document.getElementById("direct_end_month");
+    const endMonthInput = document.getElementById("direct_end_month");
     const cycleHint = document.getElementById("cycle-hint");
-    const startMonthDisplay = document.getElementById("start-month-display");
     const startReadingInput = document.getElementById("direct_start_reading");
     const unitsInput = document.getElementById("direct_units");
     const liveEndReading = document.getElementById("live-end-reading");
@@ -1846,17 +1841,44 @@
       if (!ymStr) return null;
       const parts = ymStr.split("-");
       if (parts.length === 2) {
-        return { year: parseInt(parts[0], 10), month: parseInt(parts[1], 10) };
+        const y = parseInt(parts[0], 10);
+        const m = parseInt(parts[1], 10);
+        if (!isNaN(y) && !isNaN(m) && m >= 1 && m <= 12) {
+          return { year: y, month: m };
+        }
       }
       return null;
     }
 
-    function rebuildEndMonthOptions() {
+    function formatMonthNameYear(ymStr) {
+      const parsed = parseYearMonth(ymStr);
+      if (!parsed) return "";
+      return `${allMonths[parsed.month - 1]} ${parsed.year}`;
+    }
+
+    function snapToEvenMonth(year, month, current) {
+      let m = month;
+      let y = year;
+      if (m % 2 !== 0) {
+        m += 1;
+        if (m > 12) {
+          m = 12;
+        }
+        if (y > current.year || (y === current.year && m > current.month)) {
+          m = month - 1;
+          if (m < 2) m = 2;
+        }
+      }
+      return { year: y, month: m };
+    }
+
+    function syncMonthPickers(source) {
       const cycle = cycleSelect.value;
       const current = getCurrentDate();
+      const currentMaxStr = formatYearMonthValue(current.year, current.month);
 
-      // Enforce current month as the absolute maximum for the Start Month picker
-      startMonthInput.max = formatYearMonthValue(current.year, current.month);
+      startMonthInput.max = currentMaxStr;
+      endMonthInput.max = currentMaxStr;
 
       let startParsed = parseYearMonth(startMonthInput.value);
       if (!startParsed) {
@@ -1864,89 +1886,49 @@
         startMonthInput.value = formatYearMonthValue(2025, 6);
       }
 
-      // Cap to current month if user enters future date
+      // Cap Start Month to current month
       if (startParsed.year > current.year || (startParsed.year === current.year && startParsed.month > current.month)) {
         startParsed = { year: current.year, month: current.month };
-        startMonthInput.value = formatYearMonthValue(current.year, current.month);
+        startMonthInput.value = currentMaxStr;
       }
 
-      // In Bi-Monthly mode, enforce even month (Feb, Apr, Jun, Aug, Oct, Dec)
+      // Enforce Bi-Monthly rule for Start Month
       if (cycle === "Bi-Monthly" && startParsed.month % 2 !== 0) {
-        let adjustedM = startParsed.month + 1;
-        let adjustedY = startParsed.year;
-        if (adjustedM > 12) {
-          adjustedM = 12;
-        }
-        if (adjustedY > current.year || (adjustedY === current.year && adjustedM > current.month)) {
-          adjustedM = startParsed.month - 1;
-          if (adjustedM < 2) adjustedM = 2;
-        }
-        startParsed.month = adjustedM;
-        startParsed.year = adjustedY;
-        startMonthInput.value = formatYearMonthValue(adjustedY, adjustedM);
+        startParsed = snapToEvenMonth(startParsed.year, startParsed.month, current);
+        startMonthInput.value = formatYearMonthValue(startParsed.year, startParsed.month);
       }
 
-      const startMonthName = allMonths[startParsed.month - 1];
-      startMonthDisplay.textContent = `${startMonthName} ${startParsed.year}`;
+      endMonthInput.min = startMonthInput.value;
 
-      // Clear and dynamically generate End Billing Month options
-      endMonthSelect.innerHTML = "";
+      let endParsed = parseYearMonth(endMonthInput.value);
+      if (!endParsed) {
+        endParsed = { ...startParsed };
+        endMonthInput.value = startMonthInput.value;
+      }
 
-      // Option 1: Start Month itself (Single Bill)
-      const singleOpt = document.createElement("option");
-      singleOpt.value = `${startMonthName} ${startParsed.year}`;
-      singleOpt.textContent = `${startMonthName} ${startParsed.year}`;
-      singleOpt.selected = true;
-      endMonthSelect.appendChild(singleOpt);
+      // Cap End Month to current month
+      if (endParsed.year > current.year || (endParsed.year === current.year && endParsed.month > current.month)) {
+        endParsed = { year: current.year, month: current.month };
+        endMonthInput.value = currentMaxStr;
+      }
 
-      const isStartCurrent = (startParsed.year === current.year && startParsed.month === current.month);
-      if (!isStartCurrent) {
-        const optionsList = [];
+      // End Month cannot be earlier than Start Month
+      const startDt = new Date(startParsed.year, startParsed.month - 1, 1);
+      const endDt = new Date(endParsed.year, endParsed.month - 1, 1);
+      if (endDt < startDt) {
+        endParsed = { ...startParsed };
+        endMonthInput.value = startMonthInput.value;
+      }
 
-        if (cycle === "Bi-Monthly") {
-          let curY = startParsed.year;
-          let curM = startParsed.month + 2;
-          if (curM > 12) {
-            curM -= 12;
-            curY += 1;
-          }
-
-          while (curY < current.year || (curY === current.year && curM <= current.month)) {
-            const mName = allMonths[curM - 1];
-            if (biMonthlyMonths.includes(mName)) {
-              optionsList.push({ name: mName, year: curY });
-            }
-            curM += 2;
-            if (curM > 12) {
-              curM -= 12;
-              curY += 1;
-            }
-          }
-        } else { // Monthly
-          let curY = startParsed.year;
-          let curM = startParsed.month + 1;
-          if (curM > 12) {
-            curM = 1;
-            curY += 1;
-          }
-
-          while (curY < current.year || (curY === current.year && curM <= current.month)) {
-            optionsList.push({ name: allMonths[curM - 1], year: curY });
-            curM += 1;
-            if (curM > 12) {
-              curM = 1;
-              curY += 1;
-            }
-          }
+      // Enforce Bi-Monthly rule for End Month
+      if (cycle === "Bi-Monthly" && endParsed.month % 2 !== 0) {
+        endParsed = snapToEvenMonth(endParsed.year, endParsed.month, current);
+        // Ensure not earlier than start
+        const adjustedEndDt = new Date(endParsed.year, endParsed.month - 1, 1);
+        if (adjustedEndDt < startDt) {
+          endParsed = { ...startParsed };
         }
-
-        optionsList.forEach((item) => {
-          const opt = document.createElement("option");
-          const label = `${item.name} ${item.year}`;
-          opt.value = label;
-          opt.textContent = label;
-          endMonthSelect.appendChild(opt);
-        });
+        endMonthInput.value = formatYearMonthValue(endParsed.year, endParsed.month);
       }
 
       if (cycle === "Bi-Monthly") {
@@ -1961,19 +1943,14 @@
     function updateBillCount() {
       const cycle = cycleSelect.value;
       const startParsed = parseYearMonth(startMonthInput.value);
-      const endVal = endMonthSelect.value;
-      if (!startParsed || !endVal) {
+      const endParsed = parseYearMonth(endMonthInput.value) || startParsed;
+      if (!startParsed || !endParsed) {
         if (periodCountChip) periodCountChip.textContent = "Bills to Generate: 1";
         return;
       }
 
-      const parts = endVal.split(" ");
-      const endMName = parts[0];
-      const endYear = parseInt(parts[1], 10);
-      const endMIdx = allMonths.indexOf(endMName) + 1;
-
       const startDt = new Date(startParsed.year, startParsed.month - 1, 1);
-      const endDt = new Date(endYear, endMIdx - 1, 1);
+      const endDt = new Date(endParsed.year, endParsed.month - 1, 1);
 
       let count = 0;
       if (startDt.getTime() === endDt.getTime() || endDt <= startDt) {
@@ -2003,16 +1980,20 @@
       }
     }
 
-    // Event Listeners: Immediately rebuild End Month when Start Month or Cycle changes
-    cycleSelect.addEventListener("change", rebuildEndMonthOptions);
-    startMonthInput.addEventListener("input", rebuildEndMonthOptions);
-    startMonthInput.addEventListener("change", rebuildEndMonthOptions);
-    endMonthSelect.addEventListener("change", updateBillCount);
+    cycleSelect.addEventListener("change", () => syncMonthPickers("cycle"));
+    startMonthInput.addEventListener("input", () => syncMonthPickers("start"));
+    startMonthInput.addEventListener("change", () => syncMonthPickers("start"));
+    endMonthInput.addEventListener("input", () => syncMonthPickers("end"));
+    endMonthInput.addEventListener("change", () => syncMonthPickers("end"));
 
     // Initial setup with default values
     const initialDate = getCurrentDate();
     startMonthInput.max = formatYearMonthValue(initialDate.year, initialDate.month);
-    rebuildEndMonthOptions();
+    endMonthInput.max = formatYearMonthValue(initialDate.year, initialDate.month);
+    if (!endMonthInput.value) {
+      endMonthInput.value = startMonthInput.value || "2025-06";
+    }
+    syncMonthPickers("init");
 
     function updateLiveEndReading() {
       const start = parseFloat(startReadingInput.value) || 0;
@@ -2046,6 +2027,9 @@
       directStatus.innerHTML = "";
       directResultCard.style.display = "none";
 
+      const startFormatted = formatMonthNameYear(startMonthInput.value);
+      const endFormatted = formatMonthNameYear(endMonthInput.value) || startFormatted;
+
       const payload = {
         customer_id: document.getElementById("direct_customer_id").value.trim(),
         consumer_name: document.getElementById("direct_consumer_name").value.trim(),
@@ -2054,8 +2038,8 @@
         email: document.getElementById("direct_email").value.trim(),
         category: document.getElementById("direct_category").value,
         billing_cycle: document.getElementById("direct_billing_cycle").value,
-        start_month: startMonthDisplay.textContent.trim(),
-        end_month: (endMonthSelect.value || startMonthDisplay.textContent).trim(),
+        start_month: startFormatted,
+        end_month: endFormatted,
         start_reading: parseFloat(startReadingInput.value),
         reference_units: parseFloat(unitsInput.value),
       };

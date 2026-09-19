@@ -272,11 +272,24 @@ def build_field_values(consumer: dict, bill, consumption_history: dict = None, t
     bill_date_str = str(consumer.get("bill_date") or "")
     due_date_str = str(consumer.get("due_date") or "")
 
+    raw_billing_mode = str(consumer.get("billing_mode") or "").strip()
+    if "30" in raw_billing_mode:
+        formatted_billing_mode = "30 days"
+    elif "60" in raw_billing_mode:
+        formatted_billing_mode = "60 days"
+    elif raw_billing_mode:
+        formatted_billing_mode = f"{raw_billing_mode} days" if "day" not in raw_billing_mode.lower() else raw_billing_mode
+    else:
+        formatted_billing_mode = "60 days"
+
+    raw_area = str(consumer.get("area") or ("DIU" if not is_modern else "Diu"))
+    area_value = raw_area.upper() if not is_modern else raw_area
+
     values = {
         "area_label": "Area",
-        "area": str(consumer.get("area") or ("Diu" if is_modern else "")),
+        "area": area_value,
         "t_no": str(consumer.get("t_no") or ("3004645778" if is_modern else consumer.get("bill_no") or "")),
-        "billing_mode": str(consumer.get("billing_mode") or "60 days"),
+        "billing_mode": formatted_billing_mode,
         "distribution_date": str(consumer.get("distribution_date") or bill_date_str),
         "legacy_no": str(consumer.get("legacy_no") or ("DI07/DI070010/" if is_modern else "")),
         "bill_no": str(consumer.get("bill_no") or ""),
@@ -293,10 +306,10 @@ def build_field_values(consumer: dict, bill, consumption_history: dict = None, t
         "bill_date": bill_date_str,
         "substation": str(consumer.get("substation") or "66 KV MALALA SS"),
         "previous_payment_line": (
-            f"Thank you for your previous payment of ₹ {round(prev_amt):,.2f} on {previous_payment_date} ."
+            f"Thank you for your previous payment of ₹{float(prev_amt):,.2f} on {previous_payment_date}."
             if prev_amt and previous_payment_date else ""
         ),
-        "headline_due_amount": f"{round(bill.total_amount_due):,.2f}",
+        "headline_due_amount": f"₹{bill.total_amount_due:,.2f}",
         "due_by_date": due_date_str,
         "security_deposit_held": _format_currency(consumer.get("security_deposit") or 0),
         "additional_security": _format_currency(consumer.get("additional_security") or 0),
@@ -321,10 +334,10 @@ def build_field_values(consumer: dict, bill, consumption_history: dict = None, t
         "bd_fppca_charges": _format_currency(bill.fppca_charges),
         "bd_total_charges": _format_currency(bill.charges_before_duty),
         "bd_govt_duty": _format_currency(govt_duty),
-        "bd_arrear": _format_currency(bill.arrear),
-        "bd_other_debit_credit": _format_currency(bill.other_debit_credit),
-        "bd_prompt_rebate": f"-{_format_currency(bill.prompt_rebate)}" if bill.prompt_rebate else "0.00",
-        "bd_advance_rebate": f"-{_format_currency(bill.advance_rebate)}" if bill.advance_rebate else "0.00",
+        "bd_arrear": _format_currency(getattr(bill, "arrear", 0.0) or 0.0),
+        "bd_other_debit_credit": _format_currency(getattr(bill, "other_debit_credit", 0.0) or 0.0),
+        "bd_prompt_rebate": f"-{_format_currency(bill.prompt_rebate)}" if getattr(bill, "prompt_rebate", 0.0) else "0.00",
+        "bd_advance_rebate": f"-{_format_currency(bill.advance_rebate)}" if getattr(bill, "advance_rebate", 0.0) else "0.00",
         "bd_total_amount_due": _format_currency(bill.total_amount_due),
         "bd_delay_surcharge": _format_currency(bill.delay_surcharge),
         "bd_net_amount_after_due": _format_currency(bill.amount_after_due_date),

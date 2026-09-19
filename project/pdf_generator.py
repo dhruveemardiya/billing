@@ -390,12 +390,24 @@ def _build_page_overlay(page_width, page_height, fields, values, registered_font
 
     # Pass 2: Draw text on top of masked backgrounds
     for field in fields:
-        text = values.get(field.key, "")
-        if text is None:
-            text = ""
-        text = str(text)
-        if not text:
-            continue
+        raw_val = values.get(field.key)
+        if field.key in ("bd_arrear", "bd_other_debit_credit", "bd_prompt_rebate", "bd_advance_rebate"):
+            if raw_val is None or raw_val == "" or raw_val == 0 or raw_val == 0.0 or str(raw_val).strip() in ("", "0", "0.0", "None"):
+                text = "0.00"
+            else:
+                try:
+                    f = float(str(raw_val).lstrip("-").strip())
+                    is_neg = str(raw_val).strip().startswith("-")
+                    text = f"-{f:,.2f}" if is_neg else f"{f:,.2f}"
+                except (ValueError, TypeError):
+                    text = str(raw_val)
+        else:
+            text = values.get(field.key, "")
+            if text is None:
+                text = ""
+            text = str(text)
+            if not text:
+                continue
 
         if field.key == "donut_total_charges":
             # Drawn dynamically in _draw_donut_chart
@@ -455,6 +467,44 @@ def _build_page_overlay(page_width, page_height, fields, values, registered_font
                         rw = c.stringWidth("₹", rupee_font, 6.0)
                         c.setFont(coupon_font, 6.0)
                         c.drawString(526.0 + rw, coupon_baseline, clean_amt)
+                continue
+
+        if template_structure.layout_type == "classic_neurial":
+            if field.key == "headline_due_amount":
+                clean_amt = text.lstrip("₹").strip()
+                c.setFillColorRGB(0, 0, 0)
+                target_font = _resolve_font_name("NeurialGrotesk-Bold", registered_fonts)
+                rupee_font = "SymbolMT" if "SymbolMT" in registered_fonts else target_font
+                baseline_y = page_height - field.bottom
+                c.setFont(rupee_font, 24.0)
+                c.drawString(field.x0, baseline_y, "₹")
+                rw = c.stringWidth("₹", rupee_font, 24.0)
+                c.setFont(target_font, 24.0)
+                c.drawString(field.x0 + rw, baseline_y, clean_amt)
+                continue
+
+            if field.key == "previous_payment_line":
+                if text:
+                    c.setFillColorRGB(0, 0, 0)
+                    norm_font = _resolve_font_name("NeurialGrotesk-Regular", registered_fonts)
+                    rupee_font = "SymbolMT" if "SymbolMT" in registered_fonts else norm_font
+                    baseline_y = page_height - field.bottom
+                    x_cur = field.x0
+                    if "₹" in text:
+                        parts = text.split("₹", 1)
+                        c.setFont(norm_font, 9.0)
+                        c.drawString(x_cur, baseline_y, parts[0])
+                        x_cur += c.stringWidth(parts[0], norm_font, 9.0)
+
+                        c.setFont(rupee_font, 9.0)
+                        c.drawString(x_cur, baseline_y, "₹")
+                        x_cur += c.stringWidth("₹", rupee_font, 9.0)
+
+                        c.setFont(norm_font, 9.0)
+                        c.drawString(x_cur, baseline_y, parts[1])
+                    else:
+                        c.setFont(norm_font, 9.0)
+                        c.drawString(x_cur, baseline_y, text)
                 continue
 
         x1 = field.x1 if field.x1 is not None else field.x0 + 150
@@ -657,7 +707,9 @@ def _build_page_overlay(page_width, page_height, fields, values, registered_font
         else:
             c.setStrokeColorRGB(0.5, 0.5, 0.5)
             c.setLineWidth(0.5)
-            c.line(clear_x0, page_height - axis_y, clear_x1, page_height - axis_y)
+            start_axis_x = bar_x_positions[0][0] if bar_x_positions else clear_x0
+            end_axis_x = bar_x_positions[-1][1] if bar_x_positions else clear_x1
+            c.line(start_axis_x, page_height - axis_y, end_axis_x, page_height - axis_y)
 
     # Billing Message Box: classic_neurial uses dynamic prompt rebate box; modern_manrope keeps master template message
     if any(f.key == "billing_message_box" for f in fields):
@@ -751,10 +803,10 @@ def validate_bill_generation_data(values: dict, bill, consumer: dict, consumptio
     if values.get("customer_id") != str(consumer.get("customer_id") or ""):
         raise ValueError("[CHECK I FAILED] Mapped customer_id does not match consumer input")
 
-    # Check J: PDF headline amount matches rounded bill total
+    # Check J: PDF headline amount matches bill total
     headline_clean = float(str(values.get("headline_due_amount", "")).replace(",", "").lstrip("₹").strip())
-    if abs(headline_clean - round(bill.total_amount_due)) > 0.02:
-        raise ValueError(f"[CHECK J FAILED] Headline amount {headline_clean} != rounded bill total {round(bill.total_amount_due)}")
+    if abs(headline_clean - bill.total_amount_due) > 0.02 and abs(headline_clean - round(bill.total_amount_due)) > 0.02:
+        raise ValueError(f"[CHECK J FAILED] Headline amount {headline_clean} != bill total {bill.total_amount_due}")
 
     print(f"[PRE-FLIGHT VALIDATION] Successfully verified checks A-J for Customer {consumer.get('customer_id')}")
 

@@ -105,8 +105,8 @@ def get_default_consumer_values(template_path: str = _DEFAULT_TEMPLATE) -> Dict[
                     elif f.key == "coupon_group_no":
                         consumer_key = "group_no"
 
+            defaults["area"] = "Diu"
             if ts.layout_type == "modern_manrope":
-                defaults["area"] = "Diu"
                 defaults["legacy_no"] = "DI07/DI070010/"
                 defaults["t_no"] = "3004645778"
                 defaults["substation"] = "66 KV MALALA SS"

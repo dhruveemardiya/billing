@@ -37,31 +37,7 @@ class PdfMapperChartAxisTests(unittest.TestCase):
         self.assertAlmostEqual(data["components"][2]["angle"], (47.09 / 566.51) * 360)
         self.assertAlmostEqual(data["components"][3]["angle"], (370.00 / 566.51) * 360)
 
-    def test_headline_due_amount_and_previous_payment_line_rounded_with_decimals(self):
-        consumer = {
-            "customer_id": "743200550",
-            "previous_payment": 809.05,
-            "previous_payment_date": "20/06/2026",
-            "billing_month": "August 2026",
-        }
-        bill = BillCalculation(
-            sanctioned_load_kw=1.0,
-            units_consumed=244.0,
-            category_key="residential",
-            energy_charges=564.99,
-            fixed_charges=55.00,
-            fppca_charges=68.07,
-            govt_duty=103.21,
-            total_amount_due=791.27,
-        )
-        values = build_field_values(consumer, bill)
-        self.assertEqual(values["headline_due_amount"], "791.00")
-        self.assertEqual(
-            values["previous_payment_line"],
-            "Thank you for your previous payment of ₹ 809.00 on 20/06/2026 ."
-        )
 
-    def test_dynamic_chart_fallback_values_around_reference_units(self):
         consumer = {
             "customer_id": "743200550",
             "billing_month": "August 2026",

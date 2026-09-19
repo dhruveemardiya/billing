@@ -652,6 +652,7 @@ def process_direct_bill(form_data: Dict[str, Any], template_path: str = None) ->
             "customer_id": clean["customer_id"],
             "consumer_name": clean["consumer_name"],
             "address": clean["address"],
+            "area": "Diu",
             "mobile_no": clean["mobile_no"],
             "email": clean["email"],
             "category": clean["category"],
