@@ -265,8 +265,8 @@ def _get_new_demo_fields() -> List[Field]:
         Field("previous_payment_line", 0, 248.0, 294.0, 319.0, x1=540.0, pad=0.0, font="Manrope-Regular", size=7.5, label="Previous Payment Sentence", bg=SLATE_BLUE_BG),
         Field("headline_due_amount", 0, 30.0, 325.0, 354.0, x1=210.0, pad=0.0, font="Manrope-Bold", size=22.0, label="Total Amount Due", bg=SLATE_BLUE_BG),
         Field("due_by_date", 0, 250.0, 342.5, 352.5, x1=355.0, font="Manrope-Bold", size=10.0, label="DUE BY", bg=SLATE_BLUE_BG),
-        Field("security_deposit_held", 0, 372.0, 344.0, 352.0, x1=460.0, font="Manrope-Bold", size=8.0, label="SECURITY DEPOSIT HELD", bg=SLATE_BLUE_BG),
-        Field("additional_security", 0, 486.0, 344.0, 352.0, x1=560.0, font="Manrope-Bold", size=8.0, label="ADDITIONAL SECURITY DEPOSIT REQUIRED", bg=SLATE_BLUE_BG),
+        Field("security_deposit_held", 0, 366.0, 342.0, 353.0, x1=460.0, font="Manrope-Bold", size=8.0, label="SECURITY DEPOSIT HELD", bg=SLATE_BLUE_BG),
+        Field("additional_security", 0, 480.0, 342.0, 353.0, x1=560.0, font="Manrope-Bold", size=8.0, label="ADDITIONAL SECURITY DEPOSIT REQUIRED", bg=SLATE_BLUE_BG),
 
         # --- Page 0: Meter Details Box ---
         Field("meter_no", 0, 62.0, 419.0, 427.0, x1=115.0, font="Manrope-Regular", size=8.0, label="Meter No.", bg=WHITE_BG),
@@ -294,10 +294,11 @@ def _get_new_demo_fields() -> List[Field]:
         Field("bd_total_charges", 1, 240.0, 129.8, 136.8, x1=278.0, font="Manrope-Medium", size=7.0, align="right", label="Total charges w/o duty", bg=WHITE_BG),
         Field("bd_govt_duty", 1, 240.0, 148.8, 155.8, x1=278.0, font="Manrope-Regular", size=7.0, align="right", label="Govt duty", bg=WHITE_BG),
         Field("bd_total_amount_due", 1, 240.0, 165.8, 172.8, x1=278.0, font="Manrope-Medium", size=7.0, align="right", label="Bill amount incl duty", bg=WHITE_BG),
-        Field("bd_arrear", 1, 240.0, 182.8, 189.8, x1=278.0, font="Manrope-Regular", size=7.0, align="right", label="Previous dues", bg=WHITE_BG),
+        Field("bd_arrear", 1, 220.0, 182.8, 189.8, x1=278.0, font="Manrope-Regular", size=7.0, align="right", label="Previous dues", bg=WHITE_BG),
         Field("bd_other_debit_credit", 1, 240.0, 200.8, 207.8, x1=278.0, font="Manrope-Regular", size=7.0, align="right", label="Other debit or credit", bg=WHITE_BG),
         Field("bd_delay_surcharge", 1, 240.0, 218.8, 225.8, x1=278.0, font="Manrope-Regular", size=7.0, align="right", label="Delayed payment charges", bg=WHITE_BG),
         Field("bd_net_amount_after_due", 1, 235.0, 234.3, 243.3, x1=278.0, font="Manrope-Medium", size=9.0, align="right", label="Amount due", bg=WHITE_BG),
+
 
         # --- Page 1: Important Message Box ---
         Field("billing_message_box", 1, 43.0, 254.0, 350.0, x1=278.0, bg=MESSAGE_GREY_BG, label="Important Message Box"),
@@ -342,8 +343,8 @@ def _get_classic_demo_fields() -> List[Field]:
         Field("previous_payment_line", 0, 198.8, 294.3, 303.4, x1=543, size=9.0, bg=ORANGE_BG),
         Field("headline_due_amount", 0, 41.8, 332.3, 356.3, x1=190, font="NeurialGrotesk-Bold", size=24, pad=2.0, bg=ORANGE_BG),
         Field("due_by_date", 0, 198.8, 343.2, 351.2, x1=300, font="NeurialGrotesk-Bold", size=8.0, bg=ORANGE_BG),
-        Field("security_deposit_held", 0, 321.5, 345.3, 353.4, x1=430, font="NeurialGrotesk-Regular", size=8.0, pad=0.5, bg=ORANGE_BG),
-        Field("additional_security", 0, 439.0, 345.3, 353.4, x1=543, font="NeurialGrotesk-Regular", size=8.0, pad=0.5, bg=ORANGE_BG),
+        Field("security_deposit_held", 0, 316.0, 343.0, 355.0, x1=430, font="NeurialGrotesk-Regular", size=8.0, pad=0.5, bg=ORANGE_BG),
+        Field("additional_security", 0, 433.0, 343.0, 355.0, x1=543, font="NeurialGrotesk-Regular", size=8.0, pad=0.5, bg=ORANGE_BG),
         Field("meter_no", 0, 63.2, 418.5, 425.5, x1=116, pad=1, size=7.0, bg=CREAM_BG),
         Field("present_reading", 0, 80.0, 436.0, 443.0, x1=116, pad=1, size=7.0, align="right", bg=CREAM_BG),
         Field("past_reading", 0, 80.0, 455.0, 462.0, x1=116, pad=1, size=7.0, align="right", bg=CREAM_BG),
@@ -361,7 +362,7 @@ def _get_classic_demo_fields() -> List[Field]:
         Field("bd_energy_charges", 1, 257.6, 80.3, 87.3, x1=277.2, align="right", size=7.0),
         Field("bd_fppca_charges", 1, 259.6, 99.3, 106.3, x1=277.2, align="right", size=7.0),
         Field("bd_total_charges", 1, 255.1, 118.3, 125.3, x1=277.2, align="right", font="NeurialGrotesk-Bold", size=7.0),
-        Field("bd_arrear", 1, 237.6, 137.3, 144.3, x1=277.2, align="right", size=7.0),
+        Field("bd_arrear", 1, 225.0, 137.3, 144.3, x1=277.2, align="right", size=7.0),
         Field("bd_other_debit_credit", 1, 261.7, 156.3, 163.3, x1=277.2, align="right", size=7.0),
         Field("bd_prompt_rebate", 1, 260.4, 175.3, 182.3, x1=277.2, align="right", size=7.0),
         Field("bd_advance_rebate", 1, 261.7, 194.3, 201.3, x1=277.2, align="right", size=7.0),

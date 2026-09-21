@@ -1,6 +1,7 @@
 import io
 import math
 import os
+import re
 from typing import Optional
 
 from pypdf import PdfReader, PdfWriter
@@ -84,7 +85,9 @@ def _strip_template_donut_and_leaders(page, reader, layout_type: str = "modern_m
                 continue
             new_ops.append((operands, op))
     else:
-        for operands, op in stream.operations:
+        for i, (operands, op) in enumerate(stream.operations):
+            if 275 <= i <= 359:
+                continue
             op_str = op.decode() if isinstance(op, bytes) else op
             nums = [float(x) for x in operands if isinstance(x, (int, float))]
 
@@ -139,6 +142,7 @@ def _draw_donut_chart(c, page_height, values, registered_fonts, template_structu
         except (ValueError, TypeError):
             fppas_amt = 0.0
 
+        # Reference demo.pdf has exactly 3 components: Fixed, Energy, FPPCA
         comp_total = energy_amt + fixed_amt + fppas_amt
         calc_total = comp_total if comp_total > 0 else 1.0
 
@@ -174,28 +178,33 @@ def _draw_donut_chart(c, page_height, values, registered_fonts, template_structu
         c.setFillColorRGB(*bg)
         c.circle(cx, cy, R_inner, stroke=0, fill=1)
 
-        # Center total amount text (shows actual bill total amount due)
-        total_due = float(values.get("_bill_total_amount_due") or comp_total)
+        # Center total amount text: must equal Fixed Charges + Energy Charges + FPPCA Charges
+        clean_total = f"{comp_total:,.2f}"
         c.setFillColorRGB(0, 0, 0)
         center_font = _resolve_font_name("NeurialGrotesk-Bold", registered_fonts)
-        clean_total = f"{total_due:,.2f}"
         rupee_font = "SymbolMT" if "SymbolMT" in registered_fonts else center_font
         c.setFont(rupee_font, 9.0)
         c.drawCentredString(cx, cy + 2.5, "₹")
         c.setFont(center_font, 8.5)
         c.drawCentredString(cx, cy - 8.0, clean_total)
 
-        # Horizontal leader lines matching demo.pdf
-        c.setStrokeColorRGB(0.2, 0.2, 0.2)
+        # Leader lines matching demo.pdf exactly (clean horizontal lines, exact start/end and spacing)
+        c.setStrokeColorRGB(0.15, 0.15, 0.15)
         c.setLineWidth(0.4)
-        ty_energy = page_height - 435.07
-        c.line(cx - R_outer, ty_energy, 370.0, ty_energy)
-        ty_fixed = page_height - 449.27
-        c.line(cx + R_outer, ty_fixed, 510.0, ty_fixed)
-        ty_fppca = page_height - 498.32
-        c.line(467.51, ty_fppca, 510.0, ty_fppca)
 
-        # Labels & Amounts cleanly formatted
+        # Energy leader line (LEFT side): clean horizontal/short leader line toward left label
+        ty_energy = page_height - 435.07
+        c.line(387.28, ty_energy, 370.02, ty_energy)
+
+        # Fixed leader line (RIGHT side): clean horizontal leader line toward right label
+        ty_fixed = page_height - 449.27
+        c.line(495.0, ty_fixed, 510.02, ty_fixed)
+
+        # FPPCA leader line (LOWER-RIGHT side): clean horizontal leader line toward lower-right label
+        ty_fppca = page_height - 498.32
+        c.line(467.51, ty_fppca, 510.02, ty_fppca)
+
+        # Labels & Amounts cleanly formatted matching demo.pdf
         font_bold = _resolve_font_name("NeurialGrotesk-Bold", registered_fonts)
         font_reg = _resolve_font_name("NeurialGrotesk-Regular", registered_fonts)
 
@@ -218,21 +227,21 @@ def _draw_donut_chart(c, page_height, values, registered_fonts, template_structu
             c.setFont(font_bold, 8.0)
             c.drawString(x_left + rw, y, amt_str)
 
-        # Energy charges on left (right-aligned to 365)
+        # Energy charges on left (right-aligned to 365.0, 5pt gap before leader line at 370.02)
         _draw_donut_label_right(365.0, page_height - 438.0, energy_amt)
         c.setFont(font_reg, 7.0)
-        c.drawRightString(365.0, page_height - 446.5, "Energy")
-        c.drawRightString(365.0, page_height - 454.5, "Charges")
+        c.drawRightString(365.0, page_height - 446.0, "Energy")
+        c.drawRightString(365.0, page_height - 454.0, "Charges")
 
-        # Fixed charges on right (left-aligned at 515)
-        _draw_donut_label_left(515.0, page_height - 439.0, fixed_amt)
+        # Fixed charges on right (left-aligned at 515.02, 5pt gap after leader line at 510.02)
+        _draw_donut_label_left(515.02, page_height - 439.16, fixed_amt)
         c.setFont(font_reg, 7.0)
-        c.drawString(515.0, page_height - 447.5, "Fixed Charges")
+        c.drawString(515.02, page_height - 447.16, "Fixed Charges")
 
-        # FPPCA charges on right (left-aligned at 515)
-        _draw_donut_label_left(515.0, page_height - 501.0, fppas_amt)
+        # FPPCA charges on lower right (left-aligned at 515.02, 5pt gap after leader line at 510.02)
+        _draw_donut_label_left(515.02, page_height - 501.21, fppas_amt)
         c.setFont(font_reg, 7.0)
-        c.drawString(515.0, page_height - 509.5, "FPPCA Charges")
+        c.drawString(515.02, page_height - 509.21, "FPPCA Charges")
 
         return
 
@@ -285,10 +294,10 @@ def _draw_donut_chart(c, page_height, values, registered_fonts, template_structu
     fixed_extent = fixed_deg
 
     slices = [
-        {"name": "Government duty", "amount": govt_amt, "start": govt_start, "extent": govt_extent, "color": "#9AA0A6", "target": (518.0, 449.507), "side": "right"},
-        {"name": "FPPAS charges", "amount": fppas_amt, "start": fppas_start, "extent": fppas_extent, "color": "#5F666D", "target": (518.0, 429.507), "side": "right"},
-        {"name": "Energy charges", "amount": energy_amt, "start": energy_start, "extent": energy_extent, "color": "#1F2327", "target": (518.0, 409.507), "side": "right"},
-        {"name": "Fixed charges", "amount": fixed_amt, "start": fixed_start, "extent": fixed_extent, "color": "#CCD1D6", "target": (374.0, 342.454), "side": "left"},
+        {"name": "Government duty", "amount": govt_amt, "start": govt_start, "extent": govt_deg, "color": "#9AA0A6"},
+        {"name": "FPPAS charges", "amount": fppas_amt, "start": fppas_start, "extent": fppas_deg, "color": "#5F666D"},
+        {"name": "Energy charges", "amount": energy_amt, "start": energy_start, "extent": energy_deg, "color": "#1F2327"},
+        {"name": "Fixed charges", "amount": fixed_amt, "start": fixed_start, "extent": fixed_extent, "color": "#CCD1D6"},
     ]
 
     # Draw wedges
@@ -311,53 +320,119 @@ def _draw_donut_chart(c, page_height, values, registered_fonts, template_structu
 
     # Center total amount text
     c.setFillColorRGB(0, 0, 0)
-    center_font = _resolve_font_name("Manrope-Bold" if layout == "modern_manrope" else "NeurialGrotesk-Bold", registered_fonts)
-    clean_total = f"{total_amt:,.2f}"
+    center_font = _resolve_font_name("Manrope-Bold", registered_fonts)
+    font_bold = _resolve_font_name("Manrope-Bold", registered_fonts)
+    font_reg = _resolve_font_name("Manrope-Regular", registered_fonts)
+    center_total = float(values.get("_bill_total_amount_due") or total_amt)
+    clean_total = f"{center_total:,.2f}"
     rupee_font = "SymbolMT" if "SymbolMT" in registered_fonts else center_font
     c.setFont(rupee_font, 9.0)
     c.drawCentredString(cx, cy + 2.5, "₹")
     c.setFont(center_font, 8.5)
     c.drawCentredString(cx, cy - 8.0, clean_total)
 
-    # Leader lines
+    # Leader lines & Labels (clean spacing, no overlap, dynamic slice tracking)
     if layout == "modern_manrope":
         c.setStrokeColorRGB(0.15, 0.15, 0.15)
         c.setLineWidth(0.75)
 
-        for s in slices:
-            tx, ty = s["target"]
+        tx_right = 514.0
+        text_x_right = 520.0
 
-            # Calculate start point
-            if s["name"] == "Energy charges" and s["extent"] > 90.0:
-                # Huge energy slice covers the right side facing ty=409.507 (angle ~27°)
-                rad = math.radians(27.34)
-            elif s["name"] == "Fixed charges" and s["extent"] > 180.0:
-                # Huge fixed slice covers bottom-left facing ty=342.454 (angle ~245.4°)
-                rad = math.radians(245.38)
-            else:
-                mid_deg = (s["start"] + s["extent"] / 2.0) % 360.0
-                rad = math.radians(mid_deg)
+        # 1. Government Duty (upper-right)
+        # Line goes diagonally upward-right, then cleanly into the label
+        ty_govt = 449.507
+        govt_mid = (govt_start + govt_end) / 2.0
+        rad_govt = math.radians(govt_mid)
+        sx_govt = cx + R_outer * math.cos(rad_govt)
+        sy_govt = cy + R_outer * math.sin(rad_govt)
+        c.line(sx_govt, sy_govt, tx_right, ty_govt)
 
-            sx = cx + R_outer * math.cos(rad)
-            sy = cy + R_outer * math.sin(rad)
+        # 2. FPPAS Charges (right/upper-right)
+        # Diagonal line -> clean horizontal section -> label
+        ty_fppas = 429.507
+        fppas_mid = (fppas_start + fppas_end) / 2.0
+        rad_fppas = math.radians(fppas_mid)
+        sx_fppas = cx + R_outer * math.cos(rad_fppas)
+        sy_fppas = cy + R_outer * math.sin(rad_fppas)
+        elbow_x_fppas = min(tx_right - 14.0, max(sx_fppas + 10.0, 495.0))
+        c.line(sx_fppas, sy_fppas, elbow_x_fppas, ty_fppas)
+        c.line(elbow_x_fppas, ty_fppas, tx_right, ty_fppas)
 
-            if s["side"] == "left":
-                # Fixed charges line
-                if abs(sy - ty) < 3.0:
-                    c.line(sx, ty, tx, ty)
-                else:
-                    elbow_x = min(sx - 12.0, tx + 10.0)
-                    c.line(sx, sy, elbow_x, sy)
-                    c.line(elbow_x, sy, elbow_x, ty)
-                    c.line(elbow_x, ty, tx, ty)
-            else:
-                # Right side lines
-                if abs(sy - ty) < 3.0:
-                    c.line(sx, ty, tx, ty)
-                else:
-                    elbow_x = min(tx - 15.0, max(sx + 10.0, 485.0))
-                    c.line(sx, sy, elbow_x, ty)
-                    c.line(elbow_x, ty, tx, ty)
+        # 3. Energy Charges (right/lower-right)
+        # Keep the line horizontal near the label
+        ty_energy = 409.507
+        ang_energy_target = math.degrees(math.asin(max(-1.0, min(1.0, (ty_energy - cy) / R_outer))))
+        norm_start = (energy_start % 360.0)
+        norm_end = (energy_end % 360.0)
+        if norm_start < norm_end:
+            inside_energy = (norm_start <= ang_energy_target <= norm_end)
+        else:
+            inside_energy = (ang_energy_target >= norm_start or ang_energy_target <= norm_end)
+
+        if inside_energy:
+            sx_energy = cx + math.sqrt(max(0, R_outer**2 - (ty_energy - cy)**2))
+            c.line(sx_energy, ty_energy, tx_right, ty_energy)
+        else:
+            mid_energy = (energy_start + energy_end) / 2.0
+            rad_energy = math.radians(mid_energy)
+            sx_energy = cx + R_outer * math.cos(rad_energy)
+            sy_energy = cy + R_outer * math.sin(rad_energy)
+            elbow_x_energy = min(tx_right - 14.0, max(sx_energy + 8.0, 492.0))
+            c.line(sx_energy, sy_energy, elbow_x_energy, ty_energy)
+            c.line(elbow_x_energy, ty_energy, tx_right, ty_energy)
+
+        # 4. Fixed Charges (lower-left)
+        # Leader line starts from Fixed Charges segment with long clean horizontal line toward left label
+        ty_fixed = 342.454
+        tx_fixed = 374.0
+        text_x_left = 370.0
+
+        ang_fixed_target = 360.0 + math.degrees(math.asin(max(-1.0, min(1.0, (ty_fixed - cy) / R_outer))))
+        fixed_end = fixed_start + fixed_deg
+        if fixed_start <= ang_fixed_target <= fixed_end or fixed_deg >= 135.0:
+            sx_fixed = cx - math.sqrt(max(0, R_outer**2 - (cy - ty_fixed)**2))
+            c.line(sx_fixed, ty_fixed, tx_fixed, ty_fixed)
+        else:
+            mid_fixed = fixed_start + fixed_deg / 2.0
+            rad_fixed = math.radians(mid_fixed)
+            sx_f = cx + R_outer * math.cos(rad_fixed)
+            sy_f = cy + R_outer * math.sin(rad_fixed)
+            elbow_x_f = min(400.0, max(sx_f - 10.0, tx_fixed + 20.0))
+            c.line(sx_f, sy_f, elbow_x_f, ty_fixed)
+            c.line(elbow_x_f, ty_fixed, tx_fixed, ty_fixed)
+
+        # Draw Labels for modern_manrope
+        def _draw_modern_label_right(amt, name, baseline_y):
+            amt_str = f"{amt:,.2f}"
+            c.setFillColorRGB(0, 0, 0)
+            c.setFont(rupee_font, 8.0)
+            c.drawString(text_x_right, baseline_y, "₹")
+            rw = c.stringWidth("₹", rupee_font, 8.0)
+            c.setFont(font_bold, 8.0)
+            c.drawString(text_x_right + rw + 0.5, baseline_y, amt_str)
+            c.setFont(font_reg, 7.0)
+            c.drawString(text_x_right, baseline_y - 8.0, name)
+
+        def _draw_modern_label_left(amt, name, baseline_y):
+            amt_str = f"{amt:,.2f}"
+            c.setFillColorRGB(0, 0, 0)
+            c.setFont(font_bold, 8.0)
+            aw = c.stringWidth(amt_str, font_bold, 8.0)
+            c.setFont(rupee_font, 8.0)
+            rw = c.stringWidth("₹", rupee_font, 8.0)
+            total_w = rw + aw + 0.5
+            start_x = text_x_left - total_w
+            c.drawString(start_x, baseline_y, "₹")
+            c.setFont(font_bold, 8.0)
+            c.drawString(start_x + rw + 0.5, baseline_y, amt_str)
+            c.setFont(font_reg, 7.0)
+            c.drawRightString(text_x_left, baseline_y - 8.0, name)
+
+        _draw_modern_label_right(govt_amt, "Government duty", ty_govt)
+        _draw_modern_label_right(fppas_amt, "FPPAS charges", ty_fppas)
+        _draw_modern_label_right(energy_amt, "Energy charges", ty_energy)
+        _draw_modern_label_left(fixed_amt, "Fixed charges", ty_fixed)
 
 
 def _build_page_overlay(page_width, page_height, fields, values, registered_fonts, template_structure: TemplateStructure):
@@ -370,8 +445,8 @@ def _build_page_overlay(page_width, page_height, fields, values, registered_font
             continue
         if field.key == "donut_total_charges":
             continue
-        if template_structure.layout_type == "classic_neurial" and field.key in (
-            "donut_energy_charges", "donut_fixed_charges", "donut_fppca_charges"
+        if template_structure.layout_type in ("classic_neurial", "modern_manrope") and field.key in (
+            "donut_energy_charges", "donut_fixed_charges", "donut_fppca_charges", "donut_govt_duty"
         ):
             continue
         x1 = field.x1 if field.x1 is not None else field.x0 + 150
@@ -382,25 +457,27 @@ def _build_page_overlay(page_width, page_height, fields, values, registered_font
         c.setFillColorRGB(*field.bg)
         c.rect(rect_x0, rect_y0, rect_x1 - rect_x0, rect_y1 - rect_y0, stroke=0, fill=1)
 
-        if field.key == "consumption_sentence_units" and template_structure.layout_type == "classic_neurial":
-            extra_bottom = 2.0
-            c.setFillColorRGB(*field.bg)
-            c.rect(rect_x0, rect_y0 - extra_bottom, rect_x1 - rect_x0,
-                   (rect_y1 - rect_y0) + extra_bottom, stroke=0, fill=1)
+        if field.key == "consumption_sentence_units":
+            bg_color = (1.0, 1.0, 1.0) if template_structure.layout_type == "modern_manrope" else pdf_mapper.CREAM_BG
+            c.setFillColorRGB(*bg_color)
+            c.rect(41.5, page_height - 528.0, 185.0, 15.0, stroke=0, fill=1)
 
     # Pass 2: Draw text on top of masked backgrounds
     for field in fields:
         raw_val = values.get(field.key)
         if field.key in ("bd_arrear", "bd_other_debit_credit", "bd_prompt_rebate", "bd_advance_rebate"):
-            if raw_val is None or raw_val == "" or raw_val == 0 or raw_val == 0.0 or str(raw_val).strip() in ("", "0", "0.0", "None"):
+            raw_str = str(raw_val or "").strip()
+            if not raw_str or raw_str in ("0", "0.0", "None"):
                 text = "0.00"
+            elif "credit" in raw_str.lower():
+                text = raw_str
             else:
                 try:
-                    f = float(str(raw_val).lstrip("-").strip())
-                    is_neg = str(raw_val).strip().startswith("-")
+                    f = float(raw_str.lstrip("-").strip())
+                    is_neg = raw_str.startswith("-")
                     text = f"-{f:,.2f}" if is_neg else f"{f:,.2f}"
                 except (ValueError, TypeError):
-                    text = str(raw_val)
+                    text = raw_str
         else:
             text = values.get(field.key, "")
             if text is None:
@@ -412,8 +489,8 @@ def _build_page_overlay(page_width, page_height, fields, values, registered_font
         if field.key == "donut_total_charges":
             # Drawn dynamically in _draw_donut_chart
             continue
-        if template_structure.layout_type == "classic_neurial" and field.key in (
-            "donut_energy_charges", "donut_fixed_charges", "donut_fppca_charges"
+        if template_structure.layout_type in ("classic_neurial", "modern_manrope") and field.key in (
+            "donut_energy_charges", "donut_fixed_charges", "donut_fppca_charges", "donut_govt_duty"
         ):
             continue
 
@@ -469,6 +546,24 @@ def _build_page_overlay(page_width, page_height, fields, values, registered_font
                         c.drawString(526.0 + rw, coupon_baseline, clean_amt)
                 continue
 
+            if field.key in ("security_deposit_held", "additional_security"):
+                clean_amt = text.lstrip("₹").strip()
+                try:
+                    amt_num = float(clean_amt.replace(",", ""))
+                    formatted_val = f"{amt_num:,.2f}"
+                except (ValueError, TypeError):
+                    formatted_val = clean_amt or "0.00"
+                c.setFillColorRGB(0, 0, 0)
+                norm_font = _resolve_font_name("Manrope-Bold", registered_fonts)
+                rupee_font = "SymbolMT" if "SymbolMT" in registered_fonts else norm_font
+                baseline_y = page_height - field.bottom
+                c.setFont(rupee_font, 8.0)
+                c.drawString(field.x0, baseline_y, "₹")
+                rw = c.stringWidth("₹", rupee_font, 8.0)
+                c.setFont(norm_font, 8.0)
+                c.drawString(field.x0 + rw + 1.0, baseline_y, formatted_val)
+                continue
+
         if template_structure.layout_type == "classic_neurial":
             if field.key == "headline_due_amount":
                 clean_amt = text.lstrip("₹").strip()
@@ -506,6 +601,52 @@ def _build_page_overlay(page_width, page_height, fields, values, registered_font
                         c.setFont(norm_font, 9.0)
                         c.drawString(x_cur, baseline_y, text)
                 continue
+
+            if field.key in ("security_deposit_held", "additional_security"):
+                clean_amt = text.lstrip("₹").strip()
+                try:
+                    amt_num = float(clean_amt.replace(",", ""))
+                    formatted_val = f"{amt_num:,.2f}"
+                except (ValueError, TypeError):
+                    formatted_val = clean_amt or "0.00"
+                c.setFillColorRGB(0, 0, 0)
+                norm_font = _resolve_font_name("NeurialGrotesk-Regular", registered_fonts)
+                rupee_font = "SymbolMT" if "SymbolMT" in registered_fonts else norm_font
+                baseline_y = page_height - 353.4
+                if field.key == "security_deposit_held":
+                    c.setFont(rupee_font, 8.0)
+                    c.drawString(316.9, baseline_y, "₹")
+                    c.setFont(norm_font, 8.0)
+                    c.drawString(321.5, baseline_y, formatted_val)
+                else:
+                    c.setFont(rupee_font, 8.0)
+                    c.drawString(434.4, baseline_y, "₹")
+                    c.setFont(norm_font, 8.0)
+                    c.drawString(439.0, baseline_y, formatted_val)
+                continue
+
+        if field.key == "consumption_sentence_units":
+            c.setFillColorRGB(0, 0, 0)
+            is_classic = template_structure.layout_type == "classic_neurial"
+            target_reg = _resolve_font_name("NeurialGrotesk-Regular" if is_classic else "Manrope-Regular", registered_fonts)
+            target_bold = _resolve_font_name("NeurialGrotesk-Bold" if is_classic else "Manrope-Bold", registered_fonts)
+            units_val = str(values.get("consumption_units") or text or "0")
+            units_match = re.search(r"\d+", units_val)
+            units_str = units_match.group() if units_match else units_val
+
+            baseline_y = page_height - (525.1 if is_classic else 525.0)
+            x_cur = 42.8
+            c.setFont(target_reg, 9.0)
+            c.drawString(x_cur, baseline_y, "You consumed ")
+            x_cur += c.stringWidth("You consumed ", target_reg, 9.0)
+
+            c.setFont(target_bold, 9.0)
+            c.drawString(x_cur, baseline_y, f"{units_str} units ")
+            x_cur += c.stringWidth(f"{units_str} units ", target_bold, 9.0)
+
+            c.setFont(target_reg, 9.0)
+            c.drawString(x_cur, baseline_y, "this billing cycle.")
+            continue
 
         x1 = field.x1 if field.x1 is not None else field.x0 + 150
 
@@ -605,11 +746,6 @@ def _build_page_overlay(page_width, page_height, fields, values, registered_font
                 ad_image = ImageReader(ad_path)
                 c.drawImage(ad_image, sx0, page_height - sbottom, sx1 - sx0, sbottom - stop,
                             preserveAspectRatio=True, anchor='n', mask='auto')
-
-            # Leader line
-            c.setStrokeColorRGB(0, 0, 0)
-            c.setLineWidth(0.3)
-            c.line(370.02, page_height - 435.07, 387.28, page_height - 435.07)
 
     # Consumption Bar Chart (if template has chart)
     if template_structure.has_chart and template_structure.chart_info and any(f.key.startswith("chart_") or f.key == "consumption_units" for f in fields):

@@ -517,6 +517,46 @@ def build_consumption_history_for_consumer(
     return {cust_id: history_map}
 
 
+def generate_bill_adjustments(cust_id: str, m_name: str, y_num: int, units: float, sanctioned_load_kw: float, category_key: str) -> Dict[str, float]:
+    """
+    Generates realistic, deterministic bill adjustments:
+    - prompt_rebate: standard prompt payment discount (0.5% of pre-duty charges).
+    - arrear: realistic dynamic adjustment (overpayment credit balance like -2.29 or carryover arrear).
+    - other_debit_credit: dynamic adjustment (0.00 or small adjustment).
+    - advance_rebate: dynamic advance payment rebate (0.00).
+    """
+    fixed_chg = billing_engine.calculate_fixed_charges(sanctioned_load_kw, category_key)
+    energy_chg, _ = billing_engine.calculate_energy_charges(units, category_key)
+    fppca_chg = billing_engine.calculate_fppca(fixed_chg, energy_chg)
+    pre_duty = fixed_chg + energy_chg + fppca_chg
+
+    h_adj = int(hashlib.md5(f"{cust_id}_{m_name}_{y_num}_adj".encode("utf-8")).hexdigest()[:8], 16)
+
+    # Prompt payment rebate: standard 0.5% discount on pre-duty charges
+    prompt_rebate = round(pre_duty * 0.005, 2)
+    if prompt_rebate < 0.01:
+        prompt_rebate = 0.50
+
+    # Arrear: realistic overpayment credit balance (matching demo.pdf: Credit: -2.29) or minor arrear
+    variant = h_adj % 100
+    if variant < 70:
+        arrear = -round(1.0 + (h_adj % 350) / 100.0, 2)
+    elif variant < 85:
+        arrear = 0.0
+    else:
+        arrear = round(5.0 + (h_adj % 1500) / 100.0, 2)
+
+    other_debit_credit = 0.0
+    advance_rebate = 0.0
+
+    return {
+        "arrear": arrear,
+        "other_debit_credit": other_debit_credit,
+        "prompt_rebate": prompt_rebate,
+        "advance_rebate": advance_rebate,
+    }
+
+
 def process_direct_bill(form_data: Dict[str, Any], template_path: str = None) -> Dict[str, Any]:
     """
     Processes direct billing for a single month or multi-month range:
@@ -559,20 +599,31 @@ def process_direct_bill(form_data: Dict[str, Any], template_path: str = None) ->
 
     # Sequence state
     current_start_reading = clean["start_reading"]
-    session_meter_no = f"DND{random.randint(10000, 99999)}"
+    session_meter_no = generate_identifiers()["meter_no"]
 
-    # Determine preceding period for Bill 0
-    first_m, first_y = periods[0]
-    prev_period_m, prev_period_y = get_previous_billing_period(first_m, first_y, clean["billing_cycle"])
-
-    # Generate realistic previous payment dates for Bill 0
+    # Calculate previous period identity
+    first_m_name, first_y_num = periods[0]
+    prev_period_m, prev_period_y = get_previous_billing_period(
+        first_m_name, first_y_num, clean["billing_cycle"]
+    )
+    # Pre-calculate previous bill dates so validator has true reference boundaries
     prev_dates_obj = generate_validated_bill_dates(prev_period_m, prev_period_y)
+    prev_bill_dt = datetime.strptime(prev_dates_obj["bill_date"], "%d/%m/%Y").date()
+    prev_due_dt = datetime.strptime(prev_dates_obj["due_date"], "%d/%m/%Y").date()
     current_prev_payment_date = generate_payment_date_between(prev_dates_obj["bill_dt"], prev_dates_obj["due_dt"])
     last_bill_dt = prev_dates_obj["bill_dt"]
     last_due_dt = prev_dates_obj["due_dt"]
 
     # Calculate realistic preceding bill amount using tariff engine
     prev_sim_units = generate_dynamic_monthly_units(clean["reference_units"], 1)[0]
+    prev_adj = generate_bill_adjustments(
+        clean["customer_id"],
+        prev_period_m,
+        prev_period_y,
+        prev_sim_units,
+        5.50,
+        billing_engine.resolve_category_key(clean["category"]),
+    )
     prev_sim_consumer = {
         "customer_id": clean["customer_id"],
         "consumer_name": clean["consumer_name"],
@@ -581,10 +632,10 @@ def process_direct_bill(form_data: Dict[str, Any], template_path: str = None) ->
         "billing_month": f"{prev_period_m} {prev_period_y}",
         "units": prev_sim_units,
         "sanctioned_load": "5.50 kW",
-        "arrear": 0.0,
-        "other_debit_credit": 0.0,
-        "prompt_rebate": 0.0,
-        "advance_rebate": 0.0,
+        "arrear": prev_adj["arrear"],
+        "other_debit_credit": prev_adj["other_debit_credit"],
+        "prompt_rebate": prev_adj["prompt_rebate"],
+        "advance_rebate": prev_adj["advance_rebate"],
     }
     prev_sim_bill = billing_engine.compute_bill(prev_sim_consumer)
     current_prev_payment_amt = round(prev_sim_bill.total_amount_due, 2)
@@ -598,6 +649,14 @@ def process_direct_bill(form_data: Dict[str, Any], template_path: str = None) ->
 
         dates = generate_validated_bill_dates(m_name, y_num)
         ids = generate_identifiers(fixed_meter_no=session_meter_no)
+        period_adj = generate_bill_adjustments(
+            clean["customer_id"],
+            m_name,
+            y_num,
+            period_units,
+            5.50,
+            billing_engine.resolve_category_key(clean["category"]),
+        )
 
         # Build 6 chronological month groups ending at current bill's month (m_name, y_num)
         chart_groups = []
@@ -627,7 +686,7 @@ def process_direct_bill(form_data: Dict[str, Any], template_path: str = None) ->
             else:
                 h_prev = int(hashlib.md5(f"{cust_id}_{m_abbr}_{y_prev}".encode("utf-8")).hexdigest()[:8], 16)
                 pct_prev = ((h_prev % 21) - 10) / 100.0
-                val_prev = float(max(50, round(clean["reference_units"] * (1.0 + pct_prev))))
+                val_prev = float(max(1, round(clean["reference_units"] * (1.0 + pct_prev))))
                 batch_records[(m_abbr, y_prev)] = val_prev
 
             # Right bar: Current cycle
@@ -639,7 +698,7 @@ def process_direct_bill(form_data: Dict[str, Any], template_path: str = None) ->
             else:
                 h_curr = int(hashlib.md5(f"{cust_id}_{m_abbr}_{y_curr}".encode("utf-8")).hexdigest()[:8], 16)
                 pct_curr = ((h_curr % 21) - 10) / 100.0
-                val_curr = float(max(50, round(clean["reference_units"] * (1.0 + pct_curr))))
+                val_curr = float(max(1, round(clean["reference_units"] * (1.0 + pct_curr))))
                 batch_records[(m_abbr, y_curr)] = val_curr
 
             chart_v_list.append(val_prev)
@@ -669,10 +728,10 @@ def process_direct_bill(form_data: Dict[str, Any], template_path: str = None) ->
             "end_reading": period_end_reading,
             "multiplier": 1,
             "units": period_units,
-            "arrear": 0.0,
-            "other_debit_credit": 0.0,
-            "prompt_rebate": 0.0,
-            "advance_rebate": 0.0,
+            "arrear": period_adj["arrear"],
+            "other_debit_credit": period_adj["other_debit_credit"],
+            "prompt_rebate": period_adj["prompt_rebate"],
+            "advance_rebate": period_adj["advance_rebate"],
             "security_deposit": ids["security_deposit"],
             "additional_security": ids["additional_security"],
             "previous_payment_date": current_prev_payment_date,

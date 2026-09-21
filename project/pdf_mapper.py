@@ -193,7 +193,7 @@ def build_field_values(consumer: dict, bill, consumption_history: dict = None, t
             else:
                 h_prev = int(hashlib.md5(f"{cust_id}_{m}_{y_prev}".encode("utf-8")).hexdigest()[:8], 16)
                 pct_prev = ((h_prev % 21) - 10) / 100.0
-                chart_values.append(float(max(50, round(ref_units * (1.0 + pct_prev)))))
+                chart_values.append(float(max(1, round(ref_units * (1.0 + pct_prev)))))
 
             # Right bar (Current cycle)
             if i == len(month_labels) - 1:
@@ -203,7 +203,7 @@ def build_field_values(consumer: dict, bill, consumption_history: dict = None, t
             else:
                 h_curr = int(hashlib.md5(f"{cust_id}_{m}_{y_curr}".encode("utf-8")).hexdigest()[:8], 16)
                 pct_curr = ((h_curr % 21) - 10) / 100.0
-                chart_values.append(float(max(50, round(ref_units * (1.0 + pct_curr)))))
+                chart_values.append(float(max(1, round(ref_units * (1.0 + pct_curr)))))
 
     mobile = str(consumer.get("mobile_no") or "")
     masked_mobile = ("*" * max(len(mobile) - 4, 0)) + mobile[-4:] if mobile else ""
@@ -318,7 +318,7 @@ def build_field_values(consumer: dict, bill, consumption_history: dict = None, t
         "past_reading": start_reading_text,
         "multiplier": f"{float(consumer.get('multiplier') or 1):.2f}",
         "consumption_units": str(int(bill.units_consumed)),
-        "consumption_sentence_units": f"= {int(bill.units_consumed)}",
+        "consumption_sentence_units": f"{int(bill.units_consumed)} units",
         "donut_energy_charges": f"₹ {_format_currency(bill.energy_charges)}",
         "donut_fixed_charges": f"₹ {_format_currency(bill.fixed_charges)}",
         "donut_total_charges": _format_currency(donut_total),
@@ -334,10 +334,10 @@ def build_field_values(consumer: dict, bill, consumption_history: dict = None, t
         "bd_fppca_charges": _format_currency(bill.fppca_charges),
         "bd_total_charges": _format_currency(bill.charges_before_duty),
         "bd_govt_duty": _format_currency(govt_duty),
-        "bd_arrear": _format_currency(getattr(bill, "arrear", 0.0) or 0.0),
+        "bd_arrear": f"Credit: {bill.arrear:.2f}" if getattr(bill, "arrear", 0.0) < 0 else _format_currency(getattr(bill, "arrear", 0.0) or 0.0),
         "bd_other_debit_credit": _format_currency(getattr(bill, "other_debit_credit", 0.0) or 0.0),
-        "bd_prompt_rebate": f"-{_format_currency(bill.prompt_rebate)}" if getattr(bill, "prompt_rebate", 0.0) else "0.00",
-        "bd_advance_rebate": f"-{_format_currency(bill.advance_rebate)}" if getattr(bill, "advance_rebate", 0.0) else "0.00",
+        "bd_prompt_rebate": f"-{_format_currency(bill.prompt_rebate)}" if getattr(bill, "prompt_rebate", 0.0) > 0 else "0.00",
+        "bd_advance_rebate": f"-{_format_currency(bill.advance_rebate)}" if getattr(bill, "advance_rebate", 0.0) > 0 else "0.00",
         "bd_total_amount_due": _format_currency(bill.total_amount_due),
         "bd_delay_surcharge": _format_currency(bill.delay_surcharge),
         "bd_net_amount_after_due": _format_currency(bill.amount_after_due_date),
