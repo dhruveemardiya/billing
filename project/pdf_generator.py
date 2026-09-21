@@ -192,17 +192,57 @@ def _draw_donut_chart(c, page_height, values, registered_fonts, template_structu
         c.setStrokeColorRGB(0.15, 0.15, 0.15)
         c.setLineWidth(0.4)
 
-        # Energy leader line (LEFT side): clean horizontal leader line toward left label
-        ty_energy = page_height - 435.07
-        c.line(387.28, ty_energy, 370.02, ty_energy)
+        # Standard demo.pdf Y coordinates
+        ty_energy_std = page_height - 435.07  # 406.82
+        ty_fixed_std = page_height - 449.27   # 392.62
+        ty_fppca_std = page_height - 498.32   # 343.57
 
-        # Fixed leader line (RIGHT side): clean horizontal leader line toward right label
-        ty_fixed = page_height - 449.27
-        c.line(495.0, ty_fixed, 510.02, ty_fixed)
+        def _is_angle_in_slice(angle, start_deg, extent_deg):
+            a = angle % 360.0
+            s = start_deg % 360.0
+            e = (s + extent_deg) % 360.0
+            if s < e:
+                return s <= a <= e
+            else:
+                return a >= s or a <= e
 
-        # FPPCA leader line (LOWER-RIGHT side): clean horizontal leader line toward lower-right label
-        ty_fppca = page_height - 498.32
-        c.line(467.51, ty_fppca, 510.02, ty_fppca)
+        # 1. Energy Charges (LEFT side)
+        ang_energy_std = 180.0 - math.degrees(math.asin(min(1.0, max(-1.0, (ty_energy_std - cy) / R_outer))))
+        if _is_angle_in_slice(ang_energy_std, energy_start, energy_deg):
+            ty_energy = ty_energy_std
+            sx_energy = 387.28
+        else:
+            e_mid = (energy_start + energy_deg / 2.0) % 360.0
+            rad_e = math.radians(e_mid)
+            ty_energy = max(cy - R_outer + 5.0, min(cy + R_outer - 5.0, cy + R_outer * math.sin(rad_e)))
+            sx_energy = cx - math.sqrt(max(0, R_outer**2 - (ty_energy - cy)**2))
+
+        # 2. Fixed Charges (RIGHT side)
+        ang_fixed_std = math.degrees(math.asin(min(1.0, max(-1.0, (ty_fixed_std - cy) / R_outer)))) % 360.0
+        if _is_angle_in_slice(ang_fixed_std, fixed_start, fixed_deg):
+            ty_fixed = ty_fixed_std
+            sx_fixed = 495.0
+        else:
+            f_mid = (fixed_start + fixed_deg / 2.0) % 360.0
+            rad_f = math.radians(f_mid)
+            ty_fixed = max(cy - R_outer + 5.0, min(cy + R_outer - 5.0, cy + R_outer * math.sin(rad_f)))
+            sx_fixed = cx + math.sqrt(max(0, R_outer**2 - (ty_fixed - cy)**2))
+
+        # 3. FPPCA Charges (LOWER-RIGHT side)
+        ang_fppca_std = (360.0 + math.degrees(math.asin(min(1.0, max(-1.0, (ty_fppca_std - cy) / R_outer))))) % 360.0
+        if _is_angle_in_slice(ang_fppca_std, fppas_start, fppas_deg):
+            ty_fppca = ty_fppca_std
+            sx_fppca = 467.51
+        else:
+            p_mid = (fppas_start + fppas_deg / 2.0) % 360.0
+            rad_p = math.radians(p_mid)
+            ty_fppca = max(cy - R_outer + 5.0, min(cy + R_outer - 5.0, cy + R_outer * math.sin(rad_p)))
+            sx_fppca = cx + math.sqrt(max(0, R_outer**2 - (ty_fppca - cy)**2))
+
+        # All 3 leader lines are PURE HORIZONTAL LINES matching demo.pdf
+        c.line(sx_energy, ty_energy, 370.02, ty_energy)
+        c.line(sx_fixed, ty_fixed, 510.02, ty_fixed)
+        c.line(sx_fppca, ty_fppca, 510.02, ty_fppca)
 
         # Labels & Amounts cleanly formatted matching demo.pdf
         font_bold = _resolve_font_name("NeurialGrotesk-Bold", registered_fonts)
@@ -228,20 +268,20 @@ def _draw_donut_chart(c, page_height, values, registered_fonts, template_structu
             c.drawString(x_left + rw, y, amt_str)
 
         # Energy charges on left (right-aligned to 365.0, 5pt gap before leader line at 370.02)
-        _draw_donut_label_right(365.0, page_height - 438.0, energy_amt)
+        _draw_donut_label_right(365.0, ty_energy - 3.0, energy_amt)
         c.setFont(font_reg, 7.0)
-        c.drawRightString(365.0, page_height - 446.0, "Energy")
-        c.drawRightString(365.0, page_height - 454.0, "Charges")
+        c.drawRightString(365.0, ty_energy - 11.0, "Energy")
+        c.drawRightString(365.0, ty_energy - 19.0, "Charges")
 
         # Fixed charges on right (left-aligned at 515.02, 5pt gap after leader line at 510.02)
-        _draw_donut_label_left(515.02, page_height - 439.16, fixed_amt)
+        _draw_donut_label_left(515.02, ty_fixed + 10.11, fixed_amt)
         c.setFont(font_reg, 7.0)
-        c.drawString(515.02, page_height - 447.16, "Fixed Charges")
+        c.drawString(515.02, ty_fixed + 2.11, "Fixed Charges")
 
         # FPPCA charges on lower right (left-aligned at 515.02, 5pt gap after leader line at 510.02)
-        _draw_donut_label_left(515.02, page_height - 501.21, fppas_amt)
+        _draw_donut_label_left(515.02, ty_fppca - 2.89, fppas_amt)
         c.setFont(font_reg, 7.0)
-        c.drawString(515.02, page_height - 509.21, "FPPCA Charges")
+        c.drawString(515.02, ty_fppca - 10.89, "FPPCA Charges")
 
         return
 
