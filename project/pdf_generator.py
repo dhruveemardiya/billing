@@ -339,68 +339,50 @@ def _draw_donut_chart(c, page_height, values, registered_fonts, template_structu
         tx_right = 514.0
         text_x_right = 520.0
 
-        # 1. Government Duty (upper-right)
-        # Line goes diagonally upward-right, then cleanly into the label
+        # Right side target Y positions
         ty_govt = 449.507
+        ty_fppas = 429.507
+        ty_energy = 409.507
+
+        # Dynamic vertical separation: minimum 15 pt clearance
+        min_gap = 18.0
+        if ty_govt - ty_fppas < min_gap:
+            ty_govt = ty_fppas + min_gap
+        if ty_fppas - ty_energy < min_gap:
+            ty_fppas = ty_energy + min_gap
+
+        # 1. Government Duty (upper-right)
+        # Diagonal outward line -> short horizontal line -> label
         govt_mid = (govt_start + govt_end) / 2.0
         rad_govt = math.radians(govt_mid)
         sx_govt = cx + R_outer * math.cos(rad_govt)
         sy_govt = cy + R_outer * math.sin(rad_govt)
-        c.line(sx_govt, sy_govt, tx_right, ty_govt)
+        elbow_x_govt = tx_right - 20.0
+        c.line(sx_govt, sy_govt, elbow_x_govt, ty_govt)
+        c.line(elbow_x_govt, ty_govt, tx_right, ty_govt)
 
         # 2. FPPAS Charges (right/upper-right)
         # Diagonal line -> clean horizontal section -> label
-        ty_fppas = 429.507
         fppas_mid = (fppas_start + fppas_end) / 2.0
         rad_fppas = math.radians(fppas_mid)
         sx_fppas = cx + R_outer * math.cos(rad_fppas)
         sy_fppas = cy + R_outer * math.sin(rad_fppas)
-        elbow_x_fppas = min(tx_right - 14.0, max(sx_fppas + 10.0, 495.0))
+        elbow_x_fppas = min(tx_right - 18.0, max(sx_fppas + 10.0, 492.0))
         c.line(sx_fppas, sy_fppas, elbow_x_fppas, ty_fppas)
         c.line(elbow_x_fppas, ty_fppas, tx_right, ty_fppas)
 
         # 3. Energy Charges (right/lower-right)
-        # Keep the line horizontal near the label
-        ty_energy = 409.507
-        ang_energy_target = math.degrees(math.asin(max(-1.0, min(1.0, (ty_energy - cy) / R_outer))))
-        norm_start = (energy_start % 360.0)
-        norm_end = (energy_end % 360.0)
-        if norm_start < norm_end:
-            inside_energy = (norm_start <= ang_energy_target <= norm_end)
-        else:
-            inside_energy = (ang_energy_target >= norm_start or ang_energy_target <= norm_end)
-
-        if inside_energy:
-            sx_energy = cx + math.sqrt(max(0, R_outer**2 - (ty_energy - cy)**2))
-            c.line(sx_energy, ty_energy, tx_right, ty_energy)
-        else:
-            mid_energy = (energy_start + energy_end) / 2.0
-            rad_energy = math.radians(mid_energy)
-            sx_energy = cx + R_outer * math.cos(rad_energy)
-            sy_energy = cy + R_outer * math.sin(rad_energy)
-            elbow_x_energy = min(tx_right - 14.0, max(sx_energy + 8.0, 492.0))
-            c.line(sx_energy, sy_energy, elbow_x_energy, ty_energy)
-            c.line(elbow_x_energy, ty_energy, tx_right, ty_energy)
+        # Horizontal leader line from donut edge to label
+        sx_energy = cx + math.sqrt(max(0, R_outer**2 - (ty_energy - cy)**2))
+        c.line(sx_energy, ty_energy, tx_right, ty_energy)
 
         # 4. Fixed Charges (lower-left)
-        # Leader line starts from Fixed Charges segment with long clean horizontal line toward left label
+        # Long clean horizontal line from donut lower-left edge to left label
         ty_fixed = 342.454
         tx_fixed = 374.0
         text_x_left = 370.0
-
-        ang_fixed_target = 360.0 + math.degrees(math.asin(max(-1.0, min(1.0, (ty_fixed - cy) / R_outer))))
-        fixed_end = fixed_start + fixed_deg
-        if fixed_start <= ang_fixed_target <= fixed_end or fixed_deg >= 135.0:
-            sx_fixed = cx - math.sqrt(max(0, R_outer**2 - (cy - ty_fixed)**2))
-            c.line(sx_fixed, ty_fixed, tx_fixed, ty_fixed)
-        else:
-            mid_fixed = fixed_start + fixed_deg / 2.0
-            rad_fixed = math.radians(mid_fixed)
-            sx_f = cx + R_outer * math.cos(rad_fixed)
-            sy_f = cy + R_outer * math.sin(rad_fixed)
-            elbow_x_f = min(400.0, max(sx_f - 10.0, tx_fixed + 20.0))
-            c.line(sx_f, sy_f, elbow_x_f, ty_fixed)
-            c.line(elbow_x_f, ty_fixed, tx_fixed, ty_fixed)
+        sx_fixed = cx - math.sqrt(max(0, R_outer**2 - (cy - ty_fixed)**2))
+        c.line(sx_fixed, ty_fixed, tx_fixed, ty_fixed)
 
         # Draw Labels for modern_manrope
         def _draw_modern_label_right(amt, name, baseline_y):
