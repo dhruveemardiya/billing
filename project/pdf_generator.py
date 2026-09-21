@@ -188,11 +188,11 @@ def _draw_donut_chart(c, page_height, values, registered_fonts, template_structu
         c.setFont(center_font, 8.5)
         c.drawCentredString(cx, cy - 8.0, clean_total)
 
-        # Leader lines matching demo.pdf exactly (clean horizontal lines, exact start/end and spacing)
+        # Leader lines matching demo.pdf exactly (clean horizontal arrows, exact start/end and spacing)
         c.setStrokeColorRGB(0.15, 0.15, 0.15)
         c.setLineWidth(0.4)
 
-        # Energy leader line (LEFT side): clean horizontal/short leader line toward left label
+        # Energy leader line (LEFT side): clean horizontal leader line toward left label
         ty_energy = page_height - 435.07
         c.line(387.28, ty_energy, 370.02, ty_energy)
 
