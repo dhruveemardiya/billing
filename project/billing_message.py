@@ -51,7 +51,7 @@ def draw_billing_message(canvas_obj, page_height, box, registered_fonts,
     resolved_bold = bold_font_name if not registered_fonts or bold_font_name in registered_fonts else "Helvetica-Bold"
 
     def fmt_amount(v):
-        return f"{v:.0f}" if v is not None else ""
+      return f"{v:.2f}" if v is not None else ""
 
     # Every run of text - including "Rs.", the amount, and the date - uses
     # the paragraph's own fontName via inline <font> tags that point at the

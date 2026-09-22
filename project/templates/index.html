@@ -1446,8 +1446,8 @@
                     <label for="direct_start_month" class="form-input-label">
                       <span>Start Billing Month <span class="req-star">*</span></span>
                     </label>
-                    <input type="month" id="direct_start_month" name="start_month" class="form-control" value="2025-06" min="2021-01" required>
-                    <span class="field-hint">Month + Year calendar picker · Max: Current Month</span>
+                    <input type="month" id="direct_start_month" name="start_month" class="form-control" value="2025-06" required>
+                    <span class="field-hint">Select any valid month and year.</span>
                   </div>
 
                   <!-- End Billing Month -->
@@ -1455,8 +1455,8 @@
                     <label for="direct_end_month" class="form-input-label">
                       <span>End Billing Month <span style="font-size: 0.72rem; font-weight: normal; color: var(--text-muted);">(Optional)</span></span>
                     </label>
-                    <input type="month" id="direct_end_month" name="end_month" class="form-control" value="2025-06" min="2021-01">
-                    <span class="field-hint">Defaults to Start Month (Single Bill). Select later month for multi-month range.</span>
+                    <input type="month" id="direct_end_month" name="end_month" class="form-control" value="2025-06">
+                    <span class="field-hint">Defaults to Start Month. Select a later month for a multi-month range.</span>
                   </div>
                 </div>
               </div>
@@ -1821,16 +1821,7 @@
     const liveEndReading = document.getElementById("live-end-reading");
     const periodCountChip = document.getElementById("period-count-chip");
 
-    const biMonthlyMonths = ["February", "April", "June", "August", "October", "December"];
     const allMonths = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
-
-    function getCurrentDate() {
-      const now = new Date();
-      return {
-        year: now.getFullYear(),
-        month: now.getMonth() + 1 // 1-12
-      };
-    }
 
     function formatYearMonthValue(year, month) {
       const mm = String(month).padStart(2, "0");
@@ -1856,46 +1847,13 @@
       return `${allMonths[parsed.month - 1]} ${parsed.year}`;
     }
 
-    function snapToEvenMonth(year, month, current) {
-      let m = month;
-      let y = year;
-      if (m % 2 !== 0) {
-        m += 1;
-        if (m > 12) {
-          m = 12;
-        }
-        if (y > current.year || (y === current.year && m > current.month)) {
-          m = month - 1;
-          if (m < 2) m = 2;
-        }
-      }
-      return { year: y, month: m };
-    }
-
     function syncMonthPickers(source) {
       const cycle = cycleSelect.value;
-      const current = getCurrentDate();
-      const currentMaxStr = formatYearMonthValue(current.year, current.month);
-
-      startMonthInput.max = currentMaxStr;
-      endMonthInput.max = currentMaxStr;
 
       let startParsed = parseYearMonth(startMonthInput.value);
       if (!startParsed) {
         startParsed = { year: 2025, month: 6 };
         startMonthInput.value = formatYearMonthValue(2025, 6);
-      }
-
-      // Cap Start Month to current month
-      if (startParsed.year > current.year || (startParsed.year === current.year && startParsed.month > current.month)) {
-        startParsed = { year: current.year, month: current.month };
-        startMonthInput.value = currentMaxStr;
-      }
-
-      // Enforce Bi-Monthly rule for Start Month
-      if (cycle === "Bi-Monthly" && startParsed.month % 2 !== 0) {
-        startParsed = snapToEvenMonth(startParsed.year, startParsed.month, current);
-        startMonthInput.value = formatYearMonthValue(startParsed.year, startParsed.month);
       }
 
       endMonthInput.min = startMonthInput.value;
@@ -1906,29 +1864,12 @@
         endMonthInput.value = startMonthInput.value;
       }
 
-      // Cap End Month to current month
-      if (endParsed.year > current.year || (endParsed.year === current.year && endParsed.month > current.month)) {
-        endParsed = { year: current.year, month: current.month };
-        endMonthInput.value = currentMaxStr;
-      }
-
       // End Month cannot be earlier than Start Month
       const startDt = new Date(startParsed.year, startParsed.month - 1, 1);
       const endDt = new Date(endParsed.year, endParsed.month - 1, 1);
       if (endDt < startDt) {
         endParsed = { ...startParsed };
         endMonthInput.value = startMonthInput.value;
-      }
-
-      // Enforce Bi-Monthly rule for End Month
-      if (cycle === "Bi-Monthly" && endParsed.month % 2 !== 0) {
-        endParsed = snapToEvenMonth(endParsed.year, endParsed.month, current);
-        // Ensure not earlier than start
-        const adjustedEndDt = new Date(endParsed.year, endParsed.month - 1, 1);
-        if (adjustedEndDt < startDt) {
-          endParsed = { ...startParsed };
-        }
-        endMonthInput.value = formatYearMonthValue(endParsed.year, endParsed.month);
       }
 
       if (cycle === "Bi-Monthly") {
@@ -1959,10 +1900,7 @@
         if (cycle === "Bi-Monthly") {
           let cur = new Date(startParsed.year, startParsed.month - 1, 1);
           while (cur <= endDt) {
-            const mName = allMonths[cur.getMonth()];
-            if (biMonthlyMonths.includes(mName)) {
-              count++;
-            }
+            count++;
             cur = new Date(cur.getFullYear(), cur.getMonth() + 2, 1);
           }
         } else { // Monthly
@@ -1987,9 +1925,6 @@
     endMonthInput.addEventListener("change", () => syncMonthPickers("end"));
 
     // Initial setup with default values
-    const initialDate = getCurrentDate();
-    startMonthInput.max = formatYearMonthValue(initialDate.year, initialDate.month);
-    endMonthInput.max = formatYearMonthValue(initialDate.year, initialDate.month);
     if (!endMonthInput.value) {
       endMonthInput.value = startMonthInput.value || "2025-06";
     }

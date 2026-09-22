@@ -108,15 +108,29 @@ class TestDirectBillWorkflow(unittest.TestCase):
         self.assertEqual(period_strings, expected_names)
         self.assertEqual(len(periods), 9)
 
-    def test_future_billing_prohibition(self):
-        """Verify that any future month beyond current system month (e.g. October 2026) is strictly blocked."""
-        with self.assertRaises(direct_bill_service.DirectBillValidationError) as ctx:
-            direct_bill_service.resolve_billing_period_sequence("October 2026", "October 2026", "Monthly")
-        self.assertIn("cannot be in the future", str(ctx.exception))
+    def test_future_and_arbitrary_months_are_supported(self):
+        """Start and end months may use any valid month and year."""
+        periods = direct_bill_service.resolve_billing_period_sequence(
+            "November 2028", "March 2029", "Monthly"
+        )
+        self.assertEqual(
+            [f"{month} {year}" for month, year in periods],
+            [
+                "November 2028",
+                "December 2028",
+                "January 2029",
+                "February 2029",
+                "March 2029",
+            ],
+        )
 
-        with self.assertRaises(direct_bill_service.DirectBillValidationError) as ctx:
-            direct_bill_service.resolve_billing_period_sequence("June 2025", "October 2026", "Monthly")
-        self.assertIn("cannot be in the future", str(ctx.exception))
+        periods = direct_bill_service.resolve_billing_period_sequence(
+            "July 2028", "January 2029", "Bi-Monthly"
+        )
+        self.assertEqual(
+            [f"{month} {year}" for month, year in periods],
+            ["July 2028", "September 2028", "November 2028", "January 2029"],
+        )
 
     def test_generation_range_unlimited_and_configurable(self):
         """Verify that periods exceeding 36 can be generated without error when unlimited, and respects custom limit if set."""

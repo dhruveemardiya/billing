@@ -78,13 +78,9 @@ def _parse_month_and_year(month_str: str) -> Tuple[str, int]:
 def resolve_billing_period_sequence(start_month_str: str, end_month_str: str, billing_cycle: str) -> List[Tuple[str, int]]:
     """
     Resolves the chronological sequence of billing periods from start_month to end_month (inclusive).
-    Business Rules:
-      1. Neither Start nor End can be in the future (beyond current system Year and Month).
-      2. If Start == End, exactly 1 billing period is generated.
-      3. If Start < End:
-         - For Monthly: generates all months after Start Month up to and including End Month.
-         - For Bi-Monthly: generates all even cycle months (Feb, Apr, Jun, Aug, Oct, Dec) after Start Month up to and including End Month.
-      4. End Month cannot be earlier than Start Month.
+        Start and end values may use any valid month and year. If Start == End,
+        exactly one billing period is generated. Monthly cycles advance one month;
+        bi-monthly cycles advance two months from the selected start month.
     """
     start_m, start_y = _parse_month_and_year(start_month_str)
     if not start_m or not start_y:
@@ -104,20 +100,6 @@ def resolve_billing_period_sequence(start_month_str: str, end_month_str: str, bi
     start_dt = date(start_y, start_m_idx, 1)
     end_dt = date(end_y, end_m_idx, 1)
 
-    # Future billing prohibition (Current month is the absolute maximum)
-    now = datetime.now()
-    current_max_dt = date(now.year, now.month, 1)
-    current_month_name = MONTH_NAMES[now.month - 1]
-
-    if start_dt > current_max_dt:
-        raise DirectBillValidationError(
-            f"Start Billing Month cannot be in the future (maximum allowed is {current_month_name} {now.year})."
-        )
-    if end_dt > current_max_dt:
-        raise DirectBillValidationError(
-            f"End Billing Month cannot be in the future (maximum allowed is {current_month_name} {now.year})."
-        )
-
     if end_dt < start_dt:
         raise DirectBillValidationError("End Billing Month cannot be earlier than Start Billing Month.")
 
@@ -125,20 +107,10 @@ def resolve_billing_period_sequence(start_month_str: str, end_month_str: str, bi
 
     # Multi-Month or Single-Month range (start_dt <= cur_dt <= end_dt)
     if billing_cycle == "Bi-Monthly":
-        if start_m not in BI_MONTHLY_MONTHS:
-            raise DirectBillValidationError(
-                f"Start Month for Bi-Monthly cycle must be one of: {', '.join(BI_MONTHLY_MONTHS)}."
-            )
-        if end_m not in BI_MONTHLY_MONTHS:
-            raise DirectBillValidationError(
-                f"End Month for Bi-Monthly cycle must be one of: {', '.join(BI_MONTHLY_MONTHS)}."
-            )
-
         cur_dt = start_dt
         while cur_dt <= end_dt:
             m_name = MONTH_NAMES[cur_dt.month - 1]
-            if m_name in BI_MONTHLY_MONTHS:
-                periods.append((m_name, cur_dt.year))
+            periods.append((m_name, cur_dt.year))
             nxt_month = cur_dt.month + 2
             nxt_year = cur_dt.year
             if nxt_month > 12:
