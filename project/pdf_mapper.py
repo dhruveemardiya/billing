@@ -3,6 +3,7 @@ from datetime import date, datetime
 from typing import List, Optional, Dict
 import os
 import hashlib
+import legacy_store
 
 from template_detector import Field, detect_template_structure
 
@@ -285,13 +286,20 @@ def build_field_values(consumer: dict, bill, consumption_history: dict = None, t
     raw_area = str(consumer.get("area") or ("DIU" if not is_modern else "Diu"))
     area_value = raw_area.upper() if not is_modern else raw_area
 
+    if is_modern:
+        legacy_val = str(consumer.get("distribution_code") or consumer.get("legacy_no") or "DI07/DI070010/")
+    else:
+        legacy_val = str(consumer.get("legacy_no") or "")
+        if not legacy_val and cust_id:
+            legacy_val = legacy_store.get_or_create_legacy_no(cust_id)
+
     values = {
         "area_label": "Area",
         "area": area_value,
         "t_no": str(consumer.get("t_no") or ("3004645778" if is_modern else consumer.get("bill_no") or "")),
         "billing_mode": formatted_billing_mode,
         "distribution_date": str(consumer.get("distribution_date") or bill_date_str),
-        "legacy_no": str(consumer.get("legacy_no") or ("DI07/DI070010/" if is_modern else "")),
+        "legacy_no": legacy_val,
         "bill_no": str(consumer.get("bill_no") or ""),
         "consumer_name": " ".join(str(consumer.get("consumer_name") or "").split()).replace(" ,", ",").upper(),
         **address_lines,

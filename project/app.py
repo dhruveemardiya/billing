@@ -22,6 +22,7 @@ import template_detector
 import mapping_engine
 import auth_manager
 import direct_bill_service
+import legacy_store
 from utils.file_utils import safe_customer_id, zip_directory, build_bill_filename, extract_billing_month_tag
 
 app = Flask(__name__)
@@ -471,6 +472,9 @@ def generate():
 
     for index, consumer in enumerate(consumers, start=1):
         try:
+            if not consumer.get("legacy_no") and consumer.get("customer_id"):
+                consumer["legacy_no"] = legacy_store.get_or_create_legacy_no(consumer["customer_id"])
+
             if previous_total is not None and consumer.get("previous_payment") is None:
                 consumer["previous_payment"] = previous_total
                 consumer["previous_payment_date"] = previous_due_date

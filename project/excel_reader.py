@@ -40,6 +40,7 @@ from openpyxl.styles import Font, PatternFill, Alignment, Border, Side
 from openpyxl.utils import get_column_letter
 
 from demo_defaults import get_default_consumer_values
+import legacy_store
 
 TEMPLATE_EXCEL_CANDIDATES = [
     os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "Bimonthly_Bills_2021_to_August_2026.xlsx"),
@@ -214,6 +215,14 @@ def read_consumers(excel_path: str) -> List[Dict]:
         # Fill in every other missing field with its sample default so the
         # bill still renders fully populated instead of blank/"0.00".
         _apply_defaults(consumer)
+
+        cust_id = str(consumer.get("customer_id") or "").strip()
+        if cust_id:
+            raw_leg = str(consumer.get("legacy_no") or "").strip()
+            if raw_leg and raw_leg.isdigit() and len(raw_leg) == 6:
+                consumer["legacy_no"] = legacy_store.get_or_create_legacy_no(cust_id, fallback_no=raw_leg)
+            else:
+                consumer["legacy_no"] = legacy_store.get_or_create_legacy_no(cust_id)
 
         if _is_blank(consumer.get("units")):
             start = consumer.get("start_reading")

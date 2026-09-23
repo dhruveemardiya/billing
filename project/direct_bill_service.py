@@ -23,6 +23,7 @@ import billing_engine
 import pdf_generator
 import template_detector
 import pdf_mapper
+import legacy_store
 from utils.file_utils import zip_directory
 
 MASTER_TEMPLATE_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "DEMONEWPDF.pdf")
@@ -572,6 +573,7 @@ def process_direct_bill(form_data: Dict[str, Any], template_path: str = None) ->
     # Sequence state
     current_start_reading = clean["start_reading"]
     session_meter_no = generate_identifiers()["meter_no"]
+    session_legacy_no = legacy_store.get_or_create_legacy_no(clean["customer_id"])
 
     # Calculate previous period identity
     first_m_name, first_y_num = periods[0]
@@ -684,6 +686,7 @@ def process_direct_bill(form_data: Dict[str, Any], template_path: str = None) ->
             "consumer_name": clean["consumer_name"],
             "address": clean["address"],
             "area": "Diu",
+            "legacy_no": session_legacy_no,
             "mobile_no": clean["mobile_no"],
             "email": clean["email"],
             "category": clean["category"],
@@ -828,6 +831,7 @@ def process_direct_bill(form_data: Dict[str, Any], template_path: str = None) ->
             "consumer": consumer,
             "summary": {
                 "customer_id": clean["customer_id"],
+                "legacy_no": session_legacy_no,
                 "consumer_name": clean["consumer_name"],
                 "category": clean["category"],
                 "billing_month": period_month_str,
