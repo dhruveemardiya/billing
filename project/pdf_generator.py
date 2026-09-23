@@ -457,6 +457,110 @@ def _draw_donut_chart(c, page_height, values, registered_fonts, template_structu
         _draw_modern_label_left(fixed_amt, "Fixed charges", ty_fixed)
 
 
+def _draw_wrapped_address(c, page_height, values, registered_fonts, template_structure: TemplateStructure):
+    raw_addr = str(values.get("full_address") or values.get("address") or "").strip()
+    if not raw_addr:
+        parts = [str(values.get(f"address_line{i}") or "").strip() for i in range(1, 10)]
+        raw_addr = ", ".join([p for p in parts if p])
+    if not raw_addr:
+        return
+
+    clean_addr = " ".join(raw_addr.split()).upper()
+
+    layout = template_structure.layout_type
+    if layout == "classic_neurial":
+        font_name = _resolve_font_name("NeurialGrotesk-Regular", registered_fonts)
+        x0 = 41.8
+        max_width = 153.2
+        top_y = 171.5
+        bottom_y = 201.5
+        max_height = bottom_y - top_y
+        font_sizes = [8.0, 7.5, 7.0, 6.5, 6.0, 5.5]
+    elif layout == "modern_manrope":
+        font_name = _resolve_font_name("Manrope-Regular", registered_fonts)
+        x0 = 40.0
+        max_width = 170.0
+        top_y = 184.0
+        bottom_y = 244.0
+        max_height = bottom_y - top_y
+        font_sizes = [8.0, 7.5, 7.0, 6.5, 6.0]
+    else:
+        addr_fields = [f for f in template_structure.fields if f.key.startswith("address_line")]
+        if not addr_fields:
+            return
+        x0 = addr_fields[0].x0
+        max_width = (addr_fields[0].x1 - addr_fields[0].x0) if addr_fields[0].x1 else 150.0
+        top_y = min(f.top for f in addr_fields)
+        bottom_y = max(f.bottom for f in addr_fields)
+        max_height = bottom_y - top_y
+        font_name = _resolve_font_name(addr_fields[0].font, registered_fonts)
+        font_sizes = [8.0, 7.5, 7.0, 6.5, 6.0]
+
+    words = clean_addr.split()
+    best_lines = []
+    best_size = font_sizes[-1]
+
+    for size in font_sizes:
+        lines = []
+        cur = []
+        for w in words:
+            candidate = " ".join(cur + [w])
+            try:
+                w_pt = c.stringWidth(candidate, font_name, size)
+            except Exception:
+                w_pt = c.stringWidth(candidate, "Helvetica", size)
+            if w_pt <= max_width:
+                cur.append(w)
+            else:
+                if cur:
+                    lines.append(" ".join(cur))
+                cur = [w]
+        if cur:
+            lines.append(" ".join(cur))
+
+        line_spacing = size * 1.25
+        needed_height = (len(lines) - 1) * line_spacing + size
+        if needed_height <= max_height or size == font_sizes[-1]:
+            best_lines = lines
+            best_size = size
+            break
+
+    n = len(best_lines)
+    if n == 0:
+        return
+
+    c.setFillColorRGB(0, 0, 0)
+    c.setFont(font_name, best_size)
+
+    if layout == "classic_neurial":
+        if n == 1:
+            baselines = [page_height - 180.0]
+        elif n == 2:
+            baselines = [page_height - 179.0, page_height - 189.0]
+        else:
+            start_y = 178.5
+            end_y = 197.0
+            step = (end_y - start_y) / (n - 1)
+            baselines = [page_height - (start_y + i * step) for i in range(n)]
+    elif layout == "modern_manrope":
+        if n <= 5:
+            start_y = 191.9
+            baselines = [page_height - (start_y + i * 10.0) for i in range(n)]
+        else:
+            start_y = top_y + best_size + 2.0
+            end_y = bottom_y - 2.0
+            step = (end_y - start_y) / (n - 1)
+            baselines = [page_height - (start_y + i * step) for i in range(n)]
+    else:
+        start_y = top_y + best_size
+        end_y = bottom_y - 1.0
+        step = (end_y - start_y) / max(n - 1, 1)
+        baselines = [page_height - (start_y + i * step) for i in range(n)]
+
+    for line_text, b_y in zip(best_lines, baselines):
+        c.drawString(x0, b_y, line_text)
+
+
 def _build_page_overlay(page_width, page_height, fields, values, registered_fonts, template_structure: TemplateStructure):
     buffer = io.BytesIO()
     c = canvas.Canvas(buffer, pagesize=(page_width, page_height))
@@ -471,6 +575,8 @@ def _build_page_overlay(page_width, page_height, fields, values, registered_font
             "donut_energy_charges", "donut_fixed_charges", "donut_fppca_charges", "donut_govt_duty"
         ):
             continue
+        if template_structure.layout_type in ("classic_neurial", "modern_manrope") and field.key.startswith("address_line"):
+            continue
         x1 = field.x1 if field.x1 is not None else field.x0 + 150
         rect_x0 = field.x0 - field.pad
         rect_x1 = x1 + field.pad
@@ -484,8 +590,18 @@ def _build_page_overlay(page_width, page_height, fields, values, registered_font
             c.setFillColorRGB(*bg_color)
             c.rect(41.5, page_height - 528.0, 185.0, 15.0, stroke=0, fill=1)
 
+    # Dedicated background mask for the full address area on page 0
+    if any(f.key.startswith("address_line") for f in fields) and template_structure.layout_type in ("classic_neurial", "modern_manrope"):
+        c.setFillColorRGB(1.0, 1.0, 1.0)
+        if template_structure.layout_type == "classic_neurial":
+            c.rect(41.5, page_height - 202.0, 154.5, 30.5, stroke=0, fill=1)
+        elif template_structure.layout_type == "modern_manrope":
+            c.rect(39.5, page_height - 245.0, 172.5, 61.0, stroke=0, fill=1)
+
     # Pass 2: Draw text on top of masked backgrounds
     for field in fields:
+        if template_structure.layout_type in ("classic_neurial", "modern_manrope") and field.key.startswith("address_line"):
+            continue
         raw_val = values.get(field.key)
         if field.key in ("bd_arrear", "bd_other_debit_credit", "bd_prompt_rebate", "bd_advance_rebate"):
             raw_str = str(raw_val or "").strip()
@@ -739,6 +855,10 @@ def _build_page_overlay(page_width, page_height, fields, values, registered_font
                     c.drawString(field.x0 + rupee_width, baseline_y, clean_amt)
             else:
                 c.drawString(field.x0, baseline_y, text)
+
+    # Dynamic Wrapped Address rendering (Page 0)
+    if any(f.key.startswith("address_line") for f in fields) and template_structure.layout_type in ("classic_neurial", "modern_manrope"):
+        _draw_wrapped_address(c, page_height, values, registered_fonts, template_structure)
 
     # Ensure left bank line of QR code box is 100% complete and fulfilled without overlapping WhatsApp icon
     if template_structure.layout_type == "modern_manrope" and any(f.key == "area" for f in fields):

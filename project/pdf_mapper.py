@@ -168,8 +168,7 @@ def _optional_text(value) -> str:
 
 def build_field_values(consumer: dict, bill, consumption_history: dict = None, template_info=None) -> dict:
     address = str(consumer.get("address") or "")
-    address = " ".join(address.split())
-    address_parts = [part.strip() for part in address.split(",") if part.strip()]
+    clean_address = " ".join(address.split())
 
     billing_month_raw = consumer.get("billing_month")
     is_modern = (template_info.layout_type == "modern_manrope") if template_info else True
@@ -226,15 +225,29 @@ def build_field_values(consumer: dict, bill, consumption_history: dict = None, t
     start_reading_text = _format_whole_number(consumer.get("start_reading"))
     end_reading_text = _format_whole_number(consumer.get("end_reading"))
 
-    # Multi-line address mapping up to 5 lines
+    # Multi-line address wrapping across lines
+    words = clean_address.split()
+    wrapped_lines = []
+    curr = []
+    for w in words:
+        candidate = " ".join(curr + [w])
+        if len(candidate) <= 35:
+            curr.append(w)
+        else:
+            if curr:
+                wrapped_lines.append(" ".join(curr))
+            curr = [w]
+    if curr:
+        wrapped_lines.append(" ".join(curr))
+
     address_lines = {}
-    for idx in range(1, 6):
-        if idx - 1 < len(address_parts):
-            address_lines[f"address_line{idx}"] = address_parts[idx - 1].upper()
+    for idx in range(1, 7):
+        if idx - 1 < len(wrapped_lines):
+            address_lines[f"address_line{idx}"] = wrapped_lines[idx - 1].upper()
         else:
             address_lines[f"address_line{idx}"] = ""
-    if not address_lines["address_line1"]:
-        address_lines["address_line1"] = address.upper()
+    if not address_lines.get("address_line1"):
+        address_lines["address_line1"] = clean_address.upper()
 
     # SINGLE SOURCE OF TRUTH (Requirement 1 & 3):
     # Donut components derive directly from the computed BillCalculation object.
@@ -302,6 +315,8 @@ def build_field_values(consumer: dict, bill, consumption_history: dict = None, t
         "legacy_no": legacy_val,
         "bill_no": str(consumer.get("bill_no") or ""),
         "consumer_name": " ".join(str(consumer.get("consumer_name") or "").split()).replace(" ,", ",").upper(),
+        "address": clean_address,
+        "full_address": clean_address,
         **address_lines,
         "mobile_no": masked_mobile,
         "email": masked_email,
