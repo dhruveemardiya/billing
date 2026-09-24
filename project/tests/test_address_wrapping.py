@@ -60,6 +60,8 @@ class AddressWrappingTests(unittest.TestCase):
             self.assertIn("PRAHLAD NAGAR", norm_text)
             self.assertIn("AHMEDABAD", norm_text)
             self.assertIn("GUJARAT", norm_text)
+            self.assertIn("REGISTERED MOBILE NO :", norm_text)
+            self.assertIn("REGISTERED E-MAIL ID :", norm_text)
 
     def test_complete_address_preserved_in_modern_pdf(self):
         template_path = "DEMONEWPDF.pdf"

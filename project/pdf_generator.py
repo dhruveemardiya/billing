@@ -465,50 +465,102 @@ def _draw_wrapped_address(c, page_height, values, registered_fonts, template_str
     if not raw_addr:
         return
 
-    clean_addr = " ".join(raw_addr.split()).upper()
-
+    clean_addr = " ".join(raw_addr.split()).upper().replace("–", "-").replace("—", "-").replace("−", "-")
     layout = template_structure.layout_type
+
     if layout == "classic_neurial":
-        font_name = _resolve_font_name("NeurialGrotesk-Regular", registered_fonts)
+        # Use Helvetica for complete glyph set (avoiding missing glyph artifacts in extracted subset)
+        font_name = "Helvetica"
         x0 = 41.8
         max_width = 153.2
-        top_y = 171.5
-        bottom_y = 201.5
-        max_height = bottom_y - top_y
-        font_sizes = [8.0, 7.5, 7.0, 6.5, 6.0, 5.5]
+        words = clean_addr.split()
+
+        # Adaptively scale font size and spacing so even very long addresses fit with ample clearance
+        chosen_lines = []
+        chosen_size = 7.5
+        chosen_step = 9.8
+        chosen_gap = 17.0
+        chosen_cstep = 10.5
+
+        for font_size, line_step, gap_after, contact_step in [
+            (7.5, 9.8, 17.0, 10.5),  # standard 1-4 lines
+            (7.0, 9.0, 14.5, 9.5),   # medium 5-6 lines
+            (6.5, 8.2, 13.0, 8.8),   # long 7-8 lines
+            (5.8, 7.2, 11.5, 8.0),   # extreme 9+ lines
+        ]:
+            lines = []
+            cur = []
+            for w in words:
+                cand = " ".join(cur + [w])
+                w_pt = c.stringWidth(cand, font_name, font_size)
+                if w_pt <= max_width:
+                    cur.append(w)
+                else:
+                    if cur:
+                        lines.append(" ".join(cur))
+                    cur = [w]
+            if cur:
+                lines.append(" ".join(cur))
+
+            n = len(lines)
+            start_y = 183.0
+            last_addr_y = start_y + (n - 1) * line_step
+            mobile_y = last_addr_y + gap_after
+            email_val_y = mobile_y + 2 * contact_step
+
+            chosen_lines = lines
+            chosen_size = font_size
+            chosen_step = line_step
+            chosen_gap = gap_after
+            chosen_cstep = contact_step
+
+            # Keep bottom well above orange YOUR BILL banner (y=295.0)
+            if email_val_y <= 276.0 or font_size <= 5.8:
+                break
+
+        # Space after name:
+        # Consumer name baseline is at 170.4. Address line 1 baseline is placed at 183.0
+        # leaving an elegant ~5.1 pt visual gap after name.
+        start_y = 183.0
+        c.setFillColorRGB(0, 0, 0)
+        c.setFont(font_name, chosen_size)
+        baselines = [start_y + i * chosen_step for i in range(len(chosen_lines))]
+        for line_text, y in zip(chosen_lines, baselines):
+            c.drawString(x0, page_height - y, line_text)
+
+        last_addr_y = baselines[-1] if baselines else start_y
+
+        # Space after address:
+        mobile_y = last_addr_y + chosen_gap
+        contact_size = min(8.0, chosen_size + 0.5)
+        c.setFont(font_name, contact_size)
+
+        mobile_val = values.get("mobile_no") or "******1513"
+        mobile_text = f"Registered Mobile No : {mobile_val}"
+        c.drawString(x0, page_height - mobile_y, mobile_text)
+
+        # Space after Registered Mobile No : -> Registered E-Mail ID :
+        email_lbl_y = mobile_y + chosen_cstep
+        c.drawString(x0, page_height - email_lbl_y, "Registered E-Mail ID :")
+
+        # Space after Registered E-Mail ID : -> email value
+        email_val_y = email_lbl_y + chosen_cstep
+        email_val = values.get("email") or "ch********gi@gmail.com"
+        c.drawString(x0, page_height - email_val_y, str(email_val))
+
     elif layout == "modern_manrope":
         font_name = _resolve_font_name("Manrope-Regular", registered_fonts)
         x0 = 40.0
         max_width = 170.0
-        top_y = 184.0
-        bottom_y = 244.0
-        max_height = bottom_y - top_y
-        font_sizes = [8.0, 7.5, 7.0, 6.5, 6.0]
-    else:
-        addr_fields = [f for f in template_structure.fields if f.key.startswith("address_line")]
-        if not addr_fields:
-            return
-        x0 = addr_fields[0].x0
-        max_width = (addr_fields[0].x1 - addr_fields[0].x0) if addr_fields[0].x1 else 150.0
-        top_y = min(f.top for f in addr_fields)
-        bottom_y = max(f.bottom for f in addr_fields)
-        max_height = bottom_y - top_y
-        font_name = _resolve_font_name(addr_fields[0].font, registered_fonts)
-        font_sizes = [8.0, 7.5, 7.0, 6.5, 6.0]
-
-    words = clean_addr.split()
-    best_lines = []
-    best_size = font_sizes[-1]
-
-    for size in font_sizes:
+        words = clean_addr.split()
         lines = []
         cur = []
         for w in words:
-            candidate = " ".join(cur + [w])
+            cand = " ".join(cur + [w])
             try:
-                w_pt = c.stringWidth(candidate, font_name, size)
+                w_pt = c.stringWidth(cand, font_name, 8.0)
             except Exception:
-                w_pt = c.stringWidth(candidate, "Helvetica", size)
+                w_pt = c.stringWidth(cand, "Helvetica", 8.0)
             if w_pt <= max_width:
                 cur.append(w)
             else:
@@ -518,47 +570,66 @@ def _draw_wrapped_address(c, page_height, values, registered_fonts, template_str
         if cur:
             lines.append(" ".join(cur))
 
-        line_spacing = size * 1.25
-        needed_height = (len(lines) - 1) * line_spacing + size
-        if needed_height <= max_height or size == font_sizes[-1]:
-            best_lines = lines
-            best_size = size
-            break
+        # Space after name:
+        # Consumer name baseline is at 179.0. Address line 1 baseline is placed at 192.0
+        # leaving a clean ~5.0 pt visual gap after name.
+        start_y = 192.0
+        line_step = 10.0
+        c.setFillColorRGB(0, 0, 0)
+        c.setFont(font_name, 8.0)
+        baselines = [start_y + i * line_step for i in range(len(lines))]
+        for line_text, y in zip(lines, baselines):
+            c.drawString(x0, page_height - y, line_text)
 
-    n = len(best_lines)
-    if n == 0:
-        return
+        # If lines exceed 5, mobile and email shift down dynamically
+        if len(lines) > 5:
+            last_addr_y = baselines[-1]
+            mobile_y = last_addr_y + 18.0
+            bold_font = _resolve_font_name("Manrope-Bold", registered_fonts)
+            c.setFont(bold_font, 8.0)
+            mobile_val = values.get("mobile_no") or "******2799"
+            c.drawString(x0, page_height - mobile_y, f"Registered Mobile:  {mobile_val}")
+            email_y = mobile_y + 10.0
+            email_val = values.get("email") or "bh****ta@hotmail.com"
+            c.drawString(x0, page_height - email_y, f"Registered Email:  {email_val}")
 
-    c.setFillColorRGB(0, 0, 0)
-    c.setFont(font_name, best_size)
-
-    if layout == "classic_neurial":
-        if n == 1:
-            baselines = [page_height - 180.0]
-        elif n == 2:
-            baselines = [page_height - 179.0, page_height - 189.0]
-        else:
-            start_y = 178.5
-            end_y = 197.0
-            step = (end_y - start_y) / (n - 1)
-            baselines = [page_height - (start_y + i * step) for i in range(n)]
-    elif layout == "modern_manrope":
-        if n <= 5:
-            start_y = 191.9
-            baselines = [page_height - (start_y + i * 10.0) for i in range(n)]
-        else:
-            start_y = top_y + best_size + 2.0
-            end_y = bottom_y - 2.0
-            step = (end_y - start_y) / (n - 1)
-            baselines = [page_height - (start_y + i * step) for i in range(n)]
     else:
-        start_y = top_y + best_size
-        end_y = bottom_y - 1.0
-        step = (end_y - start_y) / max(n - 1, 1)
-        baselines = [page_height - (start_y + i * step) for i in range(n)]
+        addr_fields = [f for f in template_structure.fields if f.key.startswith("address_line")]
+        if not addr_fields:
+            return
+        x0 = addr_fields[0].x0
+        max_width = (addr_fields[0].x1 - addr_fields[0].x0) if addr_fields[0].x1 else 150.0
+        top_y = min(f.top for f in addr_fields)
+        bottom_y = max(f.bottom for f in addr_fields)
+        font_name = _resolve_font_name(addr_fields[0].font, registered_fonts)
 
-    for line_text, b_y in zip(best_lines, baselines):
-        c.drawString(x0, b_y, line_text)
+        words = clean_addr.split()
+        lines = []
+        cur = []
+        for w in words:
+            cand = " ".join(cur + [w])
+            try:
+                w_pt = c.stringWidth(cand, font_name, 7.5)
+            except Exception:
+                w_pt = c.stringWidth(cand, "Helvetica", 7.5)
+            if w_pt <= max_width:
+                cur.append(w)
+            else:
+                if cur:
+                    lines.append(" ".join(cur))
+                cur = [w]
+        if cur:
+            lines.append(" ".join(cur))
+
+        n = len(lines)
+        if n == 0:
+            return
+        c.setFillColorRGB(0, 0, 0)
+        c.setFont(font_name, 7.5)
+        step = (bottom_y - top_y) / max(n - 1, 1) if n > 1 else 0
+        baselines = [page_height - (top_y + 7.5 + i * step) for i in range(n)]
+        for line_text, b_y in zip(lines, baselines):
+            c.drawString(x0, b_y, line_text)
 
 
 def _build_page_overlay(page_width, page_height, fields, values, registered_fonts, template_structure: TemplateStructure):
@@ -577,6 +648,8 @@ def _build_page_overlay(page_width, page_height, fields, values, registered_font
             continue
         if template_structure.layout_type in ("classic_neurial", "modern_manrope") and field.key.startswith("address_line"):
             continue
+        if template_structure.layout_type == "classic_neurial" and field.key in ("mobile_no", "email"):
+            continue
         x1 = field.x1 if field.x1 is not None else field.x0 + 150
         rect_x0 = field.x0 - field.pad
         rect_x1 = x1 + field.pad
@@ -594,13 +667,15 @@ def _build_page_overlay(page_width, page_height, fields, values, registered_font
     if any(f.key.startswith("address_line") for f in fields) and template_structure.layout_type in ("classic_neurial", "modern_manrope"):
         c.setFillColorRGB(1.0, 1.0, 1.0)
         if template_structure.layout_type == "classic_neurial":
-            c.rect(41.5, page_height - 202.0, 154.5, 30.5, stroke=0, fill=1)
+            c.rect(40.0, page_height - 275.0, 165.0, 104.0, stroke=0, fill=1)
         elif template_structure.layout_type == "modern_manrope":
             c.rect(39.5, page_height - 245.0, 172.5, 61.0, stroke=0, fill=1)
 
     # Pass 2: Draw text on top of masked backgrounds
     for field in fields:
         if template_structure.layout_type in ("classic_neurial", "modern_manrope") and field.key.startswith("address_line"):
+            continue
+        if template_structure.layout_type == "classic_neurial" and field.key in ("mobile_no", "email"):
             continue
         raw_val = values.get(field.key)
         if field.key in ("bd_arrear", "bd_other_debit_credit", "bd_prompt_rebate", "bd_advance_rebate"):
