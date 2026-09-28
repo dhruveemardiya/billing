@@ -428,6 +428,20 @@ def _repair_symbol_ttf_bytes(raw_ttf_bytes: bytes) -> bytes:
 
 
 def ensure_template_fonts_registered(template_path: str) -> dict:
+    if template_path.lower().endswith((".jpeg", ".jpg", ".png")):
+        registered = {}
+        if os.path.exists(_BUNDLED_FONTS_DIR):
+            for font_file in os.listdir(_BUNDLED_FONTS_DIR):
+                if font_file.endswith(".ttf") and not font_file.endswith("-Variable.ttf"):
+                    f_name = font_file[:-4]
+                    f_path = os.path.join(_BUNDLED_FONTS_DIR, font_file)
+                    try:
+                        pdfmetrics.registerFont(TTFont(f_name, f_path))
+                        registered[f_name] = True
+                    except Exception:
+                        pass
+        return registered
+
     key = _template_hash(template_path)
     if key in _registered_cache:
         return _registered_cache[key]

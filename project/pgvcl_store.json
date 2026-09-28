@@ -1,0 +1,112 @@
+{
+  "81107086523": {
+    "customer_id": "81107086523",
+    "meter_no": "ONE-6079800",
+    "census_code": "12102028",
+    "feeder_code": "4",
+    "route_code": "3/4/5/47",
+    "base_bill_no": 3004376776,
+    "meter_status": "1",
+    "mf": "1.0",
+    "mtr_chg_code": "A"
+  },
+  "APIPGVCL1": {
+    "customer_id": "APIPGVCL1",
+    "meter_no": "ONE-5813020",
+    "census_code": "12105830",
+    "feeder_code": "3",
+    "route_code": "3/4/5/20",
+    "base_bill_no": 3004850876,
+    "meter_status": "1",
+    "mf": "1.0",
+    "mtr_chg_code": "A"
+  },
+  "PGVCL123456": {
+    "customer_id": "PGVCL123456",
+    "meter_no": "ONE-7267193",
+    "census_code": "12105165",
+    "feeder_code": "3",
+    "route_code": "3/4/5/20",
+    "base_bill_no": 3004782210,
+    "meter_status": "1",
+    "mf": "1.0",
+    "mtr_chg_code": "A"
+  },
+  "SWITCHTEST01": {
+    "customer_id": "SWITCHTEST01",
+    "meter_no": "ONE-7946108",
+    "census_code": "12108757",
+    "feeder_code": "6",
+    "route_code": "3/4/5/33",
+    "base_bill_no": 3004753459,
+    "meter_status": "1",
+    "mf": "1.0",
+    "mtr_chg_code": "A"
+  },
+  "PERSIST_TEST_01": {
+    "customer_id": "PERSIST_TEST_01",
+    "meter_no": "ONE-3209554",
+    "census_code": "12105725",
+    "feeder_code": "2",
+    "route_code": "3/4/5/46",
+    "base_bill_no": 3004129663,
+    "meter_status": "1",
+    "mf": "1.0",
+    "mtr_chg_code": "A"
+  },
+  "PERSIST_TEST_02": {
+    "customer_id": "PERSIST_TEST_02",
+    "meter_no": "ONE-3153636",
+    "census_code": "12109654",
+    "feeder_code": "2",
+    "route_code": "3/4/5/18",
+    "base_bill_no": 3004286121,
+    "meter_status": "1",
+    "mf": "1.0",
+    "mtr_chg_code": "A"
+  },
+  "BIMONTH_TEST_01": {
+    "customer_id": "BIMONTH_TEST_01",
+    "meter_no": "ONE-9814005",
+    "census_code": "12104913",
+    "feeder_code": "3",
+    "route_code": "3/4/5/27",
+    "base_bill_no": 3004889864,
+    "meter_status": "1",
+    "mf": "1.0",
+    "mtr_chg_code": "A"
+  },
+  "7432005324": {
+    "customer_id": "7432005324",
+    "meter_no": "ONE-1954387",
+    "census_code": "12103484",
+    "feeder_code": "3",
+    "route_code": "3/4/5/14",
+    "base_bill_no": 3004529947,
+    "meter_status": "1",
+    "mf": "1.0",
+    "mtr_chg_code": "A"
+  },
+  "7432002132": {
+    "customer_id": "7432002132",
+    "meter_no": "ONE-6207462",
+    "census_code": "12102140",
+    "feeder_code": "7",
+    "route_code": "3/4/5/38",
+    "base_bill_no": 3004373273,
+    "meter_status": "1",
+    "mf": "1.0",
+    "mtr_chg_code": "A"
+  },
+  "120938": {
+    "customer_id": "120938",
+    "meter_no": "ONE-1628041",
+    "census_code": "12109078",
+    "feeder_code": "4",
+    "route_code": "3/4/5/38",
+    "base_bill_no": 3004181121,
+    "meter_status": "1",
+    "mf": "1.0",
+    "mtr_chg_code": "A"
+  }
+}

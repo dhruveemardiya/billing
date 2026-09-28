@@ -24,6 +24,7 @@ import pdf_generator
 import template_detector
 import pdf_mapper
 import legacy_store
+import pgvcl_store
 from utils.file_utils import zip_directory
 
 MASTER_TEMPLATE_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "DEMONEWPDF.pdf")
@@ -259,7 +260,15 @@ def validate_user_inputs(data: Dict[str, Any]) -> Dict[str, Any]:
     except (TypeError, ValueError):
         raise DirectBillValidationError("Reference Units Consumed must be a positive number greater than zero.")
 
+    # 11. Bill Type (Torrent Bill vs PGVCL Bill)
+    raw_bill_type = str(data.get("bill_type") or "Torrent Bill").strip()
+    if "pgvcl" in raw_bill_type.lower():
+        canonical_bill_type = "PGVCL Bill"
+    else:
+        canonical_bill_type = "Torrent Bill"
+
     return {
+        "bill_type": canonical_bill_type,
         "customer_id": raw_cust_id,
         "consumer_name": raw_name.upper(),
         "address": raw_address,
@@ -272,6 +281,18 @@ def validate_user_inputs(data: Dict[str, Any]) -> Dict[str, Any]:
         "end_month": f"{periods[-1][0]} {periods[-1][1]}",
         "start_reading": int(start_reading) if start_reading.is_integer() else start_reading,
         "reference_units": int(reference_units) if reference_units.is_integer() else reference_units,
+        "village_name": str(data.get("village_name") or "").strip(),
+        "village": str(data.get("village") or "").strip(),
+        "taluka": str(data.get("taluka") or "").strip(),
+        "district": str(data.get("district") or "").strip(),
+        "meter_no": data.get("meter_no"),
+        "census_code": data.get("census_code"),
+        "feeder_code": data.get("feeder_code"),
+        "route_code": data.get("route_code"),
+        "bill_no": data.get("bill_no"),
+        "meter_status": data.get("meter_status"),
+        "mf": data.get("mf"),
+        "mtr_chg_code": data.get("mtr_chg_code"),
     }
 
 
@@ -598,6 +619,9 @@ def process_direct_bill(form_data: Dict[str, Any], template_path: str = None) ->
         5.50,
         billing_engine.resolve_category_key(clean["category"]),
     )
+    if clean.get("bill_type") == "PGVCL Bill":
+        prev_adj["prompt_rebate"] = 0.0
+        prev_adj["advance_rebate"] = 0.0
     prev_sim_consumer = {
         "customer_id": clean["customer_id"],
         "consumer_name": clean["consumer_name"],
@@ -614,6 +638,7 @@ def process_direct_bill(form_data: Dict[str, Any], template_path: str = None) ->
     prev_sim_bill = billing_engine.compute_bill(prev_sim_consumer)
     current_prev_payment_amt = round(prev_sim_bill.total_amount_due, 2)
     expected_prev_m, expected_prev_y = prev_period_m, prev_period_y
+    generated_periods_data = {}
 
     for idx, (m_name, y_num) in enumerate(periods):
         month_idx = MONTH_NAMES.index(m_name) + 1
@@ -631,6 +656,69 @@ def process_direct_bill(form_data: Dict[str, Any], template_path: str = None) ->
             5.50,
             billing_engine.resolve_category_key(clean["category"]),
         )
+
+        # Persistent identifiers for PGVCL
+        is_pgvcl = (clean.get("bill_type") == "PGVCL Bill")
+        if is_pgvcl:
+            period_adj["prompt_rebate"] = 0.0
+            period_adj["advance_rebate"] = 0.0
+            pgvcl_ids = pgvcl_store.get_or_create_pgvcl_customer_data(
+                clean["customer_id"],
+                period_index=idx,
+                custom_inputs=clean,
+            )
+            bill_no_val = pgvcl_ids["bill_no"]
+            meter_no_val = pgvcl_ids["meter_no"]
+            census_code_val = pgvcl_ids["census_code"]
+            feeder_code_val = pgvcl_ids["feeder_code"]
+            route_code_val = pgvcl_ids["route_code"]
+            meter_status_val = pgvcl_ids["meter_status"]
+            mf_val = pgvcl_ids["mf"]
+            mtr_chg_code_val = pgvcl_ids["mtr_chg_code"]
+        else:
+            bill_no_val = ids["bill_no"]
+            meter_no_val = ids["meter_no"]
+            census_code_val = "12100002"
+            feeder_code_val = "4"
+            route_code_val = "3/4/5/32"
+            meter_status_val = "1"
+            mf_val = "1.0"
+            mtr_chg_code_val = "A"
+
+        # Compute Last 3 Months Units & Bill Amount in chronological order
+        prev_3_periods = []
+        c_p_m, c_p_y = m_name, y_num
+        for _ in range(3):
+            c_p_m, c_p_y = get_previous_billing_period(c_p_m, c_p_y, clean["billing_cycle"])
+            prev_3_periods.append((c_p_m, c_p_y))
+        prev_3_periods.reverse()  # Chronological order: Period -3, Period -2, Period -1
+
+        hist_3_months = []
+        for hp_m, hp_y in prev_3_periods:
+            hp_key = (hp_m, hp_y)
+            if hp_key in generated_periods_data:
+                h_units, h_amt = generated_periods_data[hp_key]
+            else:
+                h_hash = int(hashlib.md5(f"{clean['customer_id']}_{hp_m}_{hp_y}_hist".encode()).hexdigest()[:8], 16)
+                h_factor = 0.88 + (h_hash % 25) / 100.0
+                h_units = max(10, int(round(clean["reference_units"] * h_factor)))
+                h_cons = {
+                    "customer_id": clean["customer_id"],
+                    "consumer_name": clean["consumer_name"],
+                    "category": clean["category"],
+                    "billing_mode": "60" if clean["billing_cycle"] == "Bi-Monthly" else "30",
+                    "billing_month": f"{hp_m} {hp_y}",
+                    "units": h_units,
+                    "sanctioned_load": "5.50 kW",
+                }
+                h_bill = billing_engine.compute_bill(h_cons)
+                h_amt = round(h_bill.total_amount_due, 2)
+                generated_periods_data[hp_key] = (h_units, h_amt)
+            hist_3_months.append({
+                "month": hp_m[:3].upper(),
+                "units": h_units,
+                "amount": h_amt,
+            })
 
         # Build 6 chronological month groups ending at current bill's month (m_name, y_num)
         chart_groups = []
@@ -697,8 +785,19 @@ def process_direct_bill(form_data: Dict[str, Any], template_path: str = None) ->
             "reading_date": dates["reading_date"],
             "bill_date": dates["bill_date"],
             "due_date": dates["due_date"],
-            "bill_no": ids["bill_no"],
-            "meter_no": ids["meter_no"],
+            "bill_no": bill_no_val,
+            "meter_no": meter_no_val,
+            "census_code": census_code_val,
+            "feeder_code": feeder_code_val,
+            "route_code": route_code_val,
+            "meter_status": meter_status_val,
+            "mf": mf_val,
+            "mtr_chg_code": mtr_chg_code_val,
+            "village_name": clean.get("village_name", ""),
+            "village": clean.get("village", ""),
+            "taluka": clean.get("taluka", ""),
+            "district": clean.get("district", ""),
+            "last_3_months": hist_3_months,
             "start_reading": current_start_reading,
             "end_reading": period_end_reading,
             "multiplier": 1,
@@ -719,6 +818,7 @@ def process_direct_bill(form_data: Dict[str, Any], template_path: str = None) ->
 
         # Calculate bill independently through single source of truth
         bill = billing_engine.compute_bill(consumer)
+        generated_periods_data[(m_name, y_num)] = (period_units, round(bill.total_amount_due, 2))
 
         # Build consumption history for chart
         history = {
@@ -800,9 +900,12 @@ def process_direct_bill(form_data: Dict[str, Any], template_path: str = None) ->
         filename = f"{idx:0{pad_width}d}_Electricity_Bill_{safe_month}_{safe_id}.pdf"
         output_path = os.path.join(output_dir, filename)
 
-        # Select PDF template strictly according to this bill's Billing Month & Year:
-        # Before July 2026 -> demo.pdf, July 2026 -> demo.pdf, August 2026 and future -> DEMONEWPDF.pdf
-        if custom_template_path:
+        # Select PDF template dynamically based on Bill Type:
+        # If PGVCL Bill -> automatically use PGVCL.jpeg as the bill template
+        # If Torrent Bill -> strictly according to this bill's Billing Month & Year (demo.pdf / DEMONEWPDF.pdf)
+        if clean.get("bill_type") == "PGVCL Bill":
+            bill_template = template_detector.PGVCL_TEMPLATE_PATH
+        elif custom_template_path:
             bill_template = custom_template_path
         else:
             bill_template = template_detector.get_template_for_billing_month(period_month_str)
@@ -825,6 +928,7 @@ def process_direct_bill(form_data: Dict[str, Any], template_path: str = None) ->
             "index": idx,
             "filename": filename,
             "output_path": output_path,
+            "bill_type": clean.get("bill_type", "Torrent Bill"),
             "template_used": os.path.basename(bill_template),
             "preview_url": f"/api/preview-bill/{job_id}?filename={filename}&index={idx}",
             "download_url": f"/api/download-bill/{job_id}?filename={filename}&index={idx}",
@@ -879,6 +983,8 @@ def process_direct_bill(form_data: Dict[str, Any], template_path: str = None) ->
     return {
         "success": True,
         "message": f"Successfully generated {count} bill(s).",
+        "bill_type": clean.get("bill_type", "Torrent Bill"),
+        "template_used": primary_bill.get("template_used"),
         "batch_id": job_id,
         "bill_id": job_id,
         "total_bills": count,

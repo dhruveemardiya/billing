@@ -22,6 +22,7 @@ import pypdfium2 as pdfium
 PROJECT_DIR = os.path.dirname(os.path.abspath(__file__))
 CLASSIC_TEMPLATE_PATH = os.path.join(PROJECT_DIR, "demo.pdf")
 MODERN_TEMPLATE_PATH = os.path.join(PROJECT_DIR, "DEMONEWPDF.pdf")
+PGVCL_TEMPLATE_PATH = os.path.join(PROJECT_DIR, "PGVCL.jpeg")
 
 MONTH_NAME_TO_NUM = {
     "jan": 1, "january": 1,
@@ -450,14 +451,110 @@ def _detect_dynamic_template_fields(template_path: str) -> List[Field]:
     return fields
 
 
+def _get_pgvcl_fields() -> List[Field]:
+    """
+    Template fields and geometry for PGVCL bill (PGVCL.jpeg).
+    Image resolution: 975 x 1280, scaled uniformly to 595.0 x 781.13 pt.
+    """
+    scale = 595.0 / 975.0
+    CELL_BG = (220 / 255.0, 222 / 255.0, 222 / 255.0)
+
+    def p2pt(px, py, pw, ph):
+        return px * scale, py * scale, (py + ph) * scale, (px + pw) * scale
+
+    fields = [
+        # Billing Month Header: "ELECTRICITY BILL : JUNE 2025"
+        Field("billing_month", 0, *p2pt(525, 166, 245, 24), font="Helvetica-Bold", size=8.5, bg=CELL_BG),
+        
+        # Consumer Name & Address Block
+        Field("consumer_name", 0, *p2pt(94, 162, 428, 28), font="Helvetica-Bold", size=9.5, bg=CELL_BG),
+        Field("address_line1", 0, *p2pt(94, 194, 428, 26), font="Helvetica-Bold", size=8.0, bg=CELL_BG),
+        Field("address_line2", 0, *p2pt(94, 226, 428, 26), font="Helvetica-Bold", size=8.0, bg=CELL_BG),
+        Field("address_line3", 0, *p2pt(94, 258, 428, 26), font="Helvetica-Bold", size=8.0, bg=CELL_BG),
+        Field("address_line4", 0, *p2pt(94, 290, 428, 26), font="Helvetica-Bold", size=8.0, bg=CELL_BG),
+        
+        # Customer ID ("Consumer No :") & Meter No ("Meter No :")
+        Field("customer_id", 0, *p2pt(94, 322, 428, 26), font="Helvetica-Bold", size=9.0, bg=CELL_BG),
+        Field("meter_no", 0, *p2pt(94, 354, 428, 26), font="Helvetica-Bold", size=9.0, bg=CELL_BG),
+        
+        # System Metadata Table (Top Right)
+        Field("census_code", 0, *p2pt(700, 160, 198, 31), font="Helvetica-Bold", size=9.0, bg=CELL_BG),
+        Field("feeder_code", 0, *p2pt(700, 191, 198, 31), font="Helvetica-Bold", size=9.0, bg=CELL_BG),
+        Field("route_code", 0, *p2pt(700, 224, 198, 31), font="Helvetica-Bold", size=9.0, bg=CELL_BG),
+        Field("bill_no", 0, *p2pt(700, 257, 198, 31), font="Helvetica-Bold", size=9.0, bg=CELL_BG),
+        Field("bill_date", 0, *p2pt(700, 289, 198, 34), font="Helvetica-Bold", size=9.0, bg=CELL_BG),
+        Field("due_date", 0, *p2pt(700, 324, 198, 36), font="Helvetica-Bold", size=9.0, bg=CELL_BG),
+        
+        # Tech Specs Bar
+        Field("sanctioned_load_kw", 0, *p2pt(206, 408, 104, 28), font="Helvetica-Bold", size=8.5, align="center", bg=CELL_BG),
+        Field("category", 0, *p2pt(526, 408, 74, 28), font="Helvetica-Bold", size=8.0, align="center", bg=CELL_BG),
+        Field("sanctioned_load", 0, *p2pt(603, 408, 79, 28), font="Helvetica-Bold", size=8.5, align="center", bg=CELL_BG),
+        
+        # Meter Readings
+        Field("end_reading", 0, *p2pt(196, 439, 78, 36), font="Helvetica-Bold", size=10.0, align="center", bg=CELL_BG),
+        Field("start_reading", 0, *p2pt(196, 475, 78, 35), font="Helvetica-Bold", size=10.0, align="center", bg=CELL_BG),
+        Field("consumption_units", 0, *p2pt(196, 510, 78, 36), font="Helvetica-Bold", size=10.0, align="center", bg=CELL_BG),
+        
+        # Account & Details (Middle Left)
+        Field("total_consumption", 0, *p2pt(310, 598, 130, 26), font="Helvetica-Bold", size=9.0, bg=CELL_BG),
+        Field("company_charge", 0, *p2pt(310, 624, 130, 26), font="Helvetica-Bold", size=9.0, bg=CELL_BG),
+        Field("previous_payment", 0, *p2pt(444, 654, 79, 30), font="Helvetica-Bold", size=8.5, align="center", bg=CELL_BG),
+        
+        # Charges Details Table (Middle Right, 20 rows at y = 439 + (row-1)*29.85)
+        Field("fixed_charges", 0, *p2pt(814, 439, 85, 30), font="Helvetica-Bold", size=8.5, align="right", bg=CELL_BG),
+        Field("energy_charges", 0, *p2pt(814, 469, 85, 30), font="Helvetica-Bold", size=8.5, align="right", bg=CELL_BG),
+        Field("ujala_charges", 0, *p2pt(814, 499, 85, 30), font="Helvetica-Bold", size=8.5, align="right", bg=CELL_BG),
+        Field("fppca_charges", 0, *p2pt(814, 528, 85, 30), font="Helvetica-Bold", size=8.5, align="right", bg=CELL_BG),
+        Field("reactive_charge", 0, *p2pt(814, 558, 85, 30), font="Helvetica-Bold", size=8.5, align="right", bg=CELL_BG),
+        Field("govt_duty", 0, *p2pt(814, 588, 85, 30), font="Helvetica-Bold", size=8.5, align="right", bg=CELL_BG),
+        Field("meter_charge", 0, *p2pt(814, 618, 85, 30), font="Helvetica-Bold", size=8.5, align="right", bg=CELL_BG),
+        Field("fuse_misc_charge", 0, *p2pt(814, 648, 85, 30), font="Helvetica-Bold", size=8.5, align="right", bg=CELL_BG),
+        Field("delay_charge", 0, *p2pt(814, 678, 85, 30), font="Helvetica-Bold", size=8.5, align="right", bg=CELL_BG),
+        Field("total_charges", 0, *p2pt(814, 707, 85, 30), font="Helvetica-Bold", size=9.5, align="right", bg=CELL_BG),
+        Field("prov_bill_amount", 0, *p2pt(814, 737, 85, 30), font="Helvetica-Bold", size=8.5, align="right", bg=CELL_BG),
+        Field("total_with_prov", 0, *p2pt(814, 767, 85, 30), font="Helvetica-Bold", size=9.0, align="right", bg=CELL_BG),
+        Field("arrears", 0, *p2pt(814, 797, 85, 30), font="Helvetica-Bold", size=9.0, align="right", bg=CELL_BG),
+        Field("solar_purchase", 0, *p2pt(814, 827, 85, 30), font="Helvetica-Bold", size=8.5, align="right", bg=CELL_BG),
+        Field("payment_after", 0, *p2pt(814, 857, 85, 30), font="Helvetica-Bold", size=8.5, align="right", bg=CELL_BG),
+        Field("grand_total", 0, *p2pt(814, 886, 85, 30), font="Helvetica-Bold", size=9.5, align="right", bg=CELL_BG),
+        Field("tou_bank_charge", 0, *p2pt(814, 916, 85, 30), font="Helvetica-Bold", size=8.5, align="right", bg=CELL_BG),
+        Field("govt_relief", 0, *p2pt(814, 946, 85, 30), font="Helvetica-Bold", size=8.5, align="right", bg=CELL_BG),
+        Field("net_bill_amount", 0, *p2pt(814, 1006, 85, 32), font="Helvetica-Bold", size=10.5, align="right", bg=CELL_BG),
+        
+        # Bottom Office Slip
+        Field("slip_consumer_no_left", 0, *p2pt(196, 1165, 138, 45), font="Helvetica-Bold", size=9.5, align="center", bg=CELL_BG),
+        Field("slip_consumer_no_right", 0, *p2pt(780, 1165, 120, 45), font="Helvetica-Bold", size=9.5, align="center", bg=CELL_BG),
+    ]
+    return fields
+
+
 def detect_template_structure(template_path: str) -> TemplateStructure:
     """
-    Main entry point: Inspects the PDF file and returns a complete TemplateStructure.
+    Main entry point: Inspects the PDF file (or PGVCL image) and returns a complete TemplateStructure.
     Automatically identifies whether the template matches DEMONEWPDF.pdf, demo.pdf,
-    or is a custom newly uploaded template.
+    PGVCL.jpeg, or is a custom newly uploaded template.
     """
     filename = os.path.basename(template_path).lower()
     
+    # Handle PGVCL Bill template
+    if "pgvcl" in filename or template_path.lower().endswith((".jpeg", ".jpg", ".png")):
+        fields = _get_pgvcl_fields()
+        fields_by_page = {0: fields}
+        fields_by_key = {f.key: f for f in fields}
+        return TemplateStructure(
+            template_path=template_path,
+            template_name=os.path.basename(template_path),
+            page_count=1,
+            fields=fields,
+            fields_by_page=fields_by_page,
+            fields_by_key=fields_by_key,
+            layout_type="pgvcl",
+            chart_info={},
+            has_donut=False,
+            has_chart=False,
+            billing_message_box=None,
+        )
+
     # Read text to identify signature font or keywords
     sample_text = ""
     font_names = set()

@@ -8,6 +8,10 @@ from pypdf import PdfReader, PdfWriter
 from pypdf.generic import NameObject, ContentStream
 from reportlab.pdfgen import canvas
 from reportlab.lib.colors import HexColor
+from reportlab.pdfbase import pdfmetrics
+from reportlab.pdfbase.ttfonts import TTFont
+import hashlib
+from PIL import Image
 from billing_message import draw_billing_message
 import font_manager
 import pdf_mapper
@@ -1164,10 +1168,489 @@ def validate_bill_generation_data(values: dict, bill, consumer: dict, consumptio
     print(f"[PRE-FLIGHT VALIDATION] Successfully verified checks A-J for Customer {consumer.get('customer_id')}")
 
 
+def _generate_pgvcl_bill_pdf(template_path: str, consumer: dict, bill, values: dict, output_path: str,
+                            template_structure: TemplateStructure) -> str:
+    """
+    Renders PGVCL electricity bill PDF using PGVCL.jpeg as the background template,
+    with pixel-perfect cell masking, calibrated paper tones, razor-sharp table
+    grid line preservation, authentic printed typography, and strict 7-field handwriting.
+    """
+    import numpy as np
+
+    with Image.open(template_path) as img:
+        img_rgb = img.convert("RGB")
+        img_w, img_h = img_rgb.size
+        arr = np.array(img_rgb)
+
+    page_w = 595.0
+    page_h = round(page_w * img_h / img_w, 2)
+    scale = page_w / img_w
+
+    def get_bg(px0, py0, px1, py1, fallback=(0.922, 0.925, 0.918)):
+        sub = arr[max(0, int(py0)):min(img_h, int(py1)), max(0, int(px0)):min(img_w, int(px1))]
+        mask = (sub[:, :, 0] > 165) & (sub[:, :, 0] < 248) & (np.sum(sub, axis=2) > 500)
+        if np.any(mask):
+            med = np.median(sub[mask], axis=0)
+            return tuple(round(float(c) / 255.0, 4) for c in med)
+        return fallback
+
+    # 1. Base canvas with the PGVCL background template image
+    base_buf = io.BytesIO()
+    c_base = canvas.Canvas(base_buf, pagesize=(page_w, page_h))
+    c_base.drawImage(template_path, 0, 0, width=page_w, height=page_h)
+    c_base.save()
+    base_buf.seek(0)
+    base_page = PdfReader(base_buf).pages[0]
+
+    # 2. Register fonts
+    print_font_reg = "Helvetica"
+    print_font_bold = "Helvetica-Bold"
+    if os.path.exists(r"C:\Windows\Fonts\arial.ttf"):
+        try:
+            if "Arial" not in pdfmetrics.getRegisteredFontNames():
+                pdfmetrics.registerFont(TTFont("Arial", r"C:\Windows\Fonts\arial.ttf"))
+            print_font_reg = "Arial"
+        except Exception:
+            pass
+    if os.path.exists(r"C:\Windows\Fonts\arialbd.ttf"):
+        try:
+            if "Arial-Bold" not in pdfmetrics.getRegisteredFontNames():
+                pdfmetrics.registerFont(TTFont("Arial-Bold", r"C:\Windows\Fonts\arialbd.ttf"))
+            print_font_bold = "Arial-Bold"
+        except Exception:
+            pass
+
+    hand_font_name = "Helvetica-Bold"
+    for fname, fpath in [
+        ("SegoePrint", r"C:\Windows\Fonts\segoepr.ttf"),
+        ("SegoePrint-Bold", r"C:\Windows\Fonts\segoeprb.ttf"),
+        ("InkFree", r"C:\Windows\Fonts\Inkfree.ttf"),
+    ]:
+        if os.path.exists(fpath):
+            try:
+                if fname not in pdfmetrics.getRegisteredFontNames():
+                    pdfmetrics.registerFont(TTFont(fname, fpath))
+                hand_font_name = fname
+                break
+            except Exception:
+                pass
+
+    # 3. Overlay canvas for masking and dynamic field rendering
+    overlay_buf = io.BytesIO()
+    c = canvas.Canvas(overlay_buf, pagesize=(page_w, page_h))
+
+    def mask_cell(px, py, pw, ph, bg_sample=None, fallback=(0.922, 0.925, 0.918)):
+        if bg_sample is None:
+            bg_sample = (px, py, px + pw, py + ph)
+        bg = get_bg(*bg_sample, fallback=fallback)
+        c.setFillColorRGB(*bg)
+        x = px * scale
+        w = pw * scale
+        y = page_h - (py + ph) * scale
+        h = ph * scale
+        c.rect(x, y, w, h, stroke=0, fill=1)
+
+    def draw_h_line(x0, x1, y, stroke_color=(0.40, 0.40, 0.40), width=0.55):
+        c.setStrokeColorRGB(*stroke_color)
+        c.setLineWidth(width)
+        c.line(x0 * scale, page_h - y * scale, x1 * scale, page_h - y * scale)
+
+    def draw_v_line(x, y0, y1, stroke_color=(0.40, 0.40, 0.40), width=0.55):
+        c.setStrokeColorRGB(*stroke_color)
+        c.setLineWidth(width)
+        c.line(x * scale, page_h - y1 * scale, x * scale, page_h - y0 * scale)
+
+    def draw_text_in_cell(px, py, pw, ph, text, font=print_font_reg, size=8.5, align='left', color=(0.10, 0.12, 0.15), pad_x=5.0):
+        if text is None or text == "":
+            return
+        c.setFont(font, size)
+        c.setFillColorRGB(*color)
+        x = px * scale
+        w = pw * scale
+        cell_mid_y = page_h - (py + ph / 2.0) * scale
+        baseline_y = cell_mid_y - 0.35 * size
+        text_str = str(text)
+        if align == 'right':
+            c.drawRightString(x + w - pad_x, baseline_y, text_str)
+        elif align == 'center':
+            c.drawCentredString(x + w / 2.0, baseline_y, text_str)
+        else:
+            c.drawString(x + pad_x, baseline_y, text_str)
+
+    def draw_handwritten_in_cell(px, py, pw, ph, text, font=hand_font_name, size=8.8, align='center', color=(0.08, 0.13, 0.35), pad_x=5.0):
+        if text is None or text == "":
+            return
+        text_str = str(text)
+        x = px * scale
+        w = pw * scale
+        cell_mid_y = page_h - (py + ph / 2.0) * scale
+        base_y = cell_mid_y - 0.35 * size
+
+        seed = int(hashlib.md5(f"{text_str}_{px}_{py}".encode()).hexdigest()[:8], 16)
+        char_data = []
+        total_w = 0.0
+
+        for i, ch in enumerate(text_str):
+            h_val = (seed + i * 43) % 1000
+            c_size = size + ((h_val % 5) - 2) * 0.04
+            dy = (((h_val // 5) % 5) - 2) * 0.04
+            dx = (((h_val // 25) % 5) - 2) * 0.02
+            c_w = pdfmetrics.stringWidth(ch, font, c_size)
+            char_data.append((ch, c_size, dy, dx, c_w))
+            total_w += c_w + dx
+
+        if align == 'right':
+            cur_x = x + w - pad_x - total_w
+        elif align == 'center':
+            cur_x = x + (w - total_w) / 2.0
+        else:
+            cur_x = x + pad_x
+
+        c.setFillColorRGB(*color)
+        for ch, c_size, dy, dx, c_w in char_data:
+            c.setFont(font, c_size)
+            c.drawString(cur_x, base_y + dy, ch)
+            cur_x += c_w + dx
+
+    # 1. SDO Name & Billing Month Header (exact bounds: x = 125 to 812, y = 163 to 197)
+    # Cleanly mask the entire header row interior to completely eliminate the scanner paper crease under SDO Name
+    mask_cell(126, 164, 685, 32, bg_sample=(130, 150, 800, 162), fallback=(0.938, 0.940, 0.938))
+    draw_h_line(125, 812, 163, (0.45, 0.45, 0.45), 0.55)
+    draw_h_line(125, 812, 197, (0.45, 0.45, 0.45), 0.55)
+    draw_v_line(125, 163, 197, (0.45, 0.45, 0.45), 0.55)
+    draw_v_line(812, 163, 197, (0.45, 0.45, 0.45), 0.55)
+
+    draw_text_in_cell(125, 163, 380, 34, "SDO NAME : VERAVAL (T)", font=print_font_bold, size=8.2, align='left', color=(0.10, 0.12, 0.15), pad_x=6.0)
+
+    b_raw = str(consumer.get('billing_month') or '').strip().upper()
+    if b_raw.startswith("ELECTRICITY BILL"):
+        b_month_text = b_raw
+    else:
+        b_month_text = f"ELECTRICITY BILL : {b_raw}" if b_raw else "ELECTRICITY BILL : MAR-APR,26"
+    draw_text_in_cell(516, 163, 290, 34, b_month_text, font=print_font_bold, size=8.2, align='left', color=(0.10, 0.12, 0.15), pad_x=0.0)
+
+    # 2. Consumer Name & Address Box (exact bounds: x = 87 to 516, y = 197 to 384)
+    mask_cell(88, 198, 427, 185, bg_sample=(100, 205, 480, 320), fallback=(0.847, 0.859, 0.859))
+    # Redraw outer box & horizontal divider lines
+    draw_v_line(87, 197, 384, (0.35, 0.35, 0.35), 0.65)
+    draw_v_line(516, 197, 384, (0.35, 0.35, 0.35), 0.65)
+    for ly in [197, 224, 251, 279, 306, 330, 356, 384]:
+        draw_h_line(87, 516, ly, (0.45, 0.45, 0.45), 0.55)
+
+    c_name = str(consumer.get('consumer_name') or '').strip().upper()
+    cust_id = str(consumer.get('customer_id') or '').strip()
+    raw_mno = str(consumer.get('meter_no') or '5797035').strip()
+    clean_mno = re.sub(r"^ONE\s*[-_]?\s*", "", raw_mno, flags=re.IGNORECASE)
+
+    raw_addr = str(consumer.get('address') or '').strip().upper()
+    v_name = str(consumer.get('village_name') or '').strip()
+    village = str(consumer.get('village') or '').strip()
+    taluka = str(consumer.get('taluka') or '').strip()
+    district = str(consumer.get('district') or '').strip()
+
+    # Determine default location if not specified
+    if not district:
+        if "AHMEDABAD" in raw_addr:
+            district = "AHMEDABAD"
+        else:
+            district = "GIR SOMNATH"
+    if not taluka:
+        if "AHMEDABAD" in raw_addr:
+            taluka = "AHMEDABAD"
+        else:
+            taluka = "Veraval"
+    if not village:
+        if "PRAHLAD NAGAR" in raw_addr or "PRAHLADNAGAR" in raw_addr:
+            village = "PRAHLAD NAGAR"
+        elif "AHMEDABAD" in raw_addr:
+            village = "AHMEDABAD"
+        else:
+            village = "Veraval (M+OG) V"
+
+    # Split address into chunks fitting comfortably inside cell width
+    words = raw_addr.split()
+    addr_chunks = []
+    curr = []
+    for w in words:
+        if len(' '.join(curr + [w])) <= 42:
+            curr.append(w)
+        else:
+            if curr:
+                addr_chunks.append(' '.join(curr))
+            curr = [w]
+    if curr:
+        addr_chunks.append(' '.join(curr))
+
+    # Map into Rows 2 to 5 keeping complete address visible and preserving Village / Taluka / District
+    if len(addr_chunks) >= 2:
+        line2 = addr_chunks[0]
+        line3 = addr_chunks[1]
+        line4 = f"VILLAGE :{village}, TAL :{taluka}"
+        line5 = f"DISTRICT :{district}"
+    elif len(addr_chunks) == 1 and v_name:
+        line2 = addr_chunks[0]
+        line3 = v_name.upper()
+        line4 = f"VILLAGE :{village}, TAL :{taluka}"
+        line5 = f"DISTRICT :{district}"
+    elif len(addr_chunks) == 1:
+        line2 = addr_chunks[0]
+        line3 = f"VILLAGE :{village}"
+        line4 = f"TALUKA :{taluka}"
+        line5 = f"DISTRICT :{district}"
+    else:
+        line2 = ""
+        line3 = f"VILLAGE :{village}"
+        line4 = f"TALUKA :{taluka}"
+        line5 = f"DISTRICT :{district}"
+
+    # Rows 1 to 7 with true vertical centering and exact printed PGVCL typography:
+    draw_text_in_cell(87, 197, 429, 27, c_name, font=print_font_bold, size=8.5, pad_x=6.0, color=(0.10, 0.12, 0.15))
+    draw_text_in_cell(87, 224, 429, 27, line2, font=print_font_reg, size=7.8, pad_x=6.0, color=(0.10, 0.12, 0.15))
+    draw_text_in_cell(87, 251, 429, 28, line3, font=print_font_reg, size=7.8, pad_x=6.0, color=(0.10, 0.12, 0.15))
+    draw_text_in_cell(87, 279, 429, 27, line4, font=print_font_reg, size=7.8, pad_x=6.0, color=(0.10, 0.12, 0.15))
+    draw_text_in_cell(87, 306, 429, 24, line5, font=print_font_reg, size=7.8, pad_x=6.0, color=(0.10, 0.12, 0.15))
+    draw_text_in_cell(87, 330, 429, 26, f"Consumer No : {cust_id}", font=print_font_bold, size=8.5, pad_x=6.0, color=(0.10, 0.12, 0.15))
+    draw_text_in_cell(87, 356, 429, 28, f"Meter No : ONE-{clean_mno}", font=print_font_bold, size=8.5, pad_x=6.0, color=(0.10, 0.12, 0.15))
+
+    # 3. System Metadata Table (exact bounds: x = 680 to 900, y = 199 to 385)
+    # Mask ONLY the value cells, preserving the printed labels on the left
+    mask_cell(682, 200, 217, 184, bg_sample=(690, 205, 890, 380), fallback=(0.925, 0.925, 0.929))
+    draw_v_line(680, 199, 385, (0.45, 0.45, 0.45), 0.55)
+    draw_v_line(900, 199, 385, (0.35, 0.35, 0.35), 0.65)
+    for ly in [199, 226, 251, 279, 306, 332, 359, 385]:
+        draw_h_line(680, 900, ly, (0.45, 0.45, 0.45), 0.55)
+
+    draw_text_in_cell(680, 199, 220, 27, str(consumer.get('census_code') or '12100002'), font=print_font_reg, size=8.5, pad_x=10.0)
+    draw_text_in_cell(680, 226, 220, 25, str(consumer.get('feeder_code') or '4'), font=print_font_reg, size=8.5, pad_x=10.0)
+    draw_text_in_cell(680, 251, 220, 28, str(consumer.get('route_code') or '3/4/5/32'), font=print_font_reg, size=8.5, pad_x=10.0)
+    draw_text_in_cell(680, 279, 220, 27, str(consumer.get('bill_no') or '3/06825'), font=print_font_reg, size=8.5, pad_x=10.0)
+    # Row 5 (306 to 332): blank row in reference PGVCL bill
+    # Row 6 & 7: Bill Date and Last Date for Payment in Handwriting font, centered in row
+    draw_handwritten_in_cell(680, 332, 220, 27, str(consumer.get('bill_date') or ''), font=hand_font_name, size=8.8, align='center')
+    draw_handwritten_in_cell(680, 359, 220, 26, str(consumer.get('due_date') or ''), font=hand_font_name, size=8.8, align='center')
+
+    # 4. Tech Specs Bar (exact bounds: x = 87 to 900, y = 385 to 439)
+    # Row 1 (Labels: 385 to 409): clean Max Demand label and erase stray scanned pen strokes
+    mask_cell(206, 386, 103, 22, bg_sample=(210, 388, 305, 406), fallback=(0.863, 0.871, 0.871))
+    draw_text_in_cell(205, 385, 105, 24, "Max. Demand", font=print_font_bold, size=8.2, align='center', color=(0.10, 0.12, 0.15))
+
+    # Erase scanned pen stroke across Seasonal & Days
+    mask_cell(681, 386, 134, 22, bg_sample=(685, 388, 814, 406), fallback=(0.863, 0.871, 0.871))
+    draw_text_in_cell(680, 385, 84, 24, "Seasonal", font=print_font_bold, size=8.2, align='center', color=(0.10, 0.12, 0.15))
+    draw_text_in_cell(764, 385, 52, 24, "Days", font=print_font_bold, size=8.2, align='center', color=(0.10, 0.12, 0.15))
+
+    # Row 2 (Values: 409 to 439):
+    mask_cell(88, 410, 811, 28, bg_sample=(100, 412, 890, 435), fallback=(0.863, 0.871, 0.871))
+
+    # Redraw Tech Specs grid lines
+    draw_h_line(87, 900, 385, (0.35, 0.35, 0.35), 0.65)
+    draw_h_line(87, 900, 409, (0.45, 0.45, 0.45), 0.55)
+    draw_h_line(87, 900, 439, (0.35, 0.35, 0.35), 0.65)
+    tech_cols = [87, 205, 310, 396, 524, 602, 680, 764, 816, 900]
+    for vx in tech_cols:
+        draw_v_line(vx, 385, 439, (0.45, 0.45, 0.45), 0.55)
+
+    load_kw = getattr(bill, 'sanctioned_load_kw', 5.5) or 5.5
+    cat_str = str(consumer.get('category') or '')
+    cat_display = 'RGPU' if cat_str.lower().startswith('res') else (cat_str.upper() or 'RGPU')
+    raw_sd = str(consumer.get('security_deposit', '1562') or '1562')
+    clean_sd = str(int(float(raw_sd))) if re.match(r'^\d+(\.\d+)?$', raw_sd) else raw_sd
+
+    draw_text_in_cell(87, 409, 118, 30, str(consumer.get('meter_status', '1')), font=print_font_reg, size=8.5, align='center', color=(0.10, 0.12, 0.15))
+    draw_handwritten_in_cell(205, 409, 105, 30, f"{load_kw:.2f}", font=hand_font_name, size=8.5, align='center')
+    draw_text_in_cell(310, 409, 86, 30, str(consumer.get('mf', '1.0')), font=print_font_reg, size=8.5, align='center', color=(0.10, 0.12, 0.15))
+    draw_text_in_cell(396, 409, 128, 30, str(consumer.get('mtr_chg_code', 'A')), font=print_font_reg, size=8.5, align='center', color=(0.10, 0.12, 0.15))
+    draw_text_in_cell(524, 409, 78, 30, cat_display, font=print_font_reg, size=8.0, align='center', color=(0.10, 0.12, 0.15))
+    draw_text_in_cell(602, 409, 78, 30, f"{load_kw:.1f}", font=print_font_reg, size=8.5, align='center', color=(0.10, 0.12, 0.15))
+    draw_text_in_cell(764, 409, 52, 30, "0", font=print_font_reg, size=8.5, align='center', color=(0.10, 0.12, 0.15))
+    draw_text_in_cell(816, 409, 84, 30, clean_sd, font=print_font_reg, size=8.5, align='center', color=(0.10, 0.12, 0.15))
+
+    # 5. Meter Readings Table (KWH column: x = 190 to 268, y = 437 to 559)
+    # Header row (KWH: 437 to 463): mask out scanned pen tick and render crisp KWH
+    mask_cell(191, 438, 76, 24, bg_sample=(195, 440, 265, 460), fallback=(0.851, 0.851, 0.855))
+    draw_text_in_cell(190, 437, 78, 26, "KWH", font=print_font_bold, size=8.2, align='center', color=(0.10, 0.12, 0.15))
+
+    # Values rows: Row 2 (Present: 463-495), Row 3 (Past: 495-528), Row 4 (Difference: 528-559)
+    start_r = int(consumer.get('start_reading') or 0)
+    end_r = int(consumer.get('end_reading') or 0)
+    diff_r = end_r - start_r
+
+    mask_cell(191, 464, 76, 94, bg_sample=(195, 465, 265, 555), fallback=(0.851, 0.851, 0.855))
+    draw_v_line(190, 437, 559, (0.45, 0.45, 0.45), 0.55)
+    draw_v_line(268, 437, 559, (0.45, 0.45, 0.45), 0.55)
+    draw_h_line(190, 268, 463, (0.45, 0.45, 0.45), 0.55)
+    draw_h_line(190, 268, 495, (0.45, 0.45, 0.45), 0.55)
+    draw_h_line(190, 268, 528, (0.45, 0.45, 0.45), 0.55)
+    draw_h_line(87, 516, 559, (0.35, 0.35, 0.35), 0.65)
+
+    # Row 2 (Present reading): HANDWRITTEN
+    draw_handwritten_in_cell(190, 463, 78, 32, str(end_r), font=hand_font_name, size=9.2, align='center')
+    # Row 3 (Past reading): PRINTED FONT (Regular weight!)
+    draw_text_in_cell(190, 495, 78, 33, str(start_r), font=print_font_reg, size=8.8, align='center', color=(0.10, 0.12, 0.15))
+    # Row 4 (Difference): HANDWRITTEN
+    draw_handwritten_in_cell(190, 528, 78, 31, str(diff_r), font=hand_font_name, size=9.2, align='center')
+
+    # 6. Account & Middle Consumption Table (x: 87 to 516, y: 559 to 770)
+    # Col 1 (Labels: 87 to 268) is PRESERVED, not masked!
+    # Col 2 (Values: 268 to 432): mask and fill
+    mask_cell(269, 560, 162, 209, bg_sample=(275, 565, 425, 765), fallback=(0.835, 0.835, 0.835))
+    # Col 3 (Right column: 432 to 516): mask ONLY the two numeric value cells
+    mask_cell(433, 613, 82, 24, bg_sample=(435, 614, 510, 636), fallback=(0.835, 0.835, 0.835))
+    mask_cell(433, 718, 82, 25, bg_sample=(435, 719, 510, 742), fallback=(0.835, 0.835, 0.835))
+
+    draw_v_line(87, 559, 770, (0.35, 0.35, 0.35), 0.65)
+    draw_v_line(268, 559, 770, (0.45, 0.45, 0.45), 0.55)
+    draw_v_line(432, 559, 770, (0.45, 0.45, 0.45), 0.55)
+    draw_v_line(516, 559, 770, (0.35, 0.35, 0.35), 0.65)
+    mid_h_lines = [559, 584, 612, 638, 664, 690, 717, 744, 770]
+    for hy in mid_h_lines:
+        draw_h_line(87, 516, hy, (0.45, 0.45, 0.45), 0.55)
+
+    ref_u = consumer.get('reference_units') or bill.units_consumed
+    draw_text_in_cell(268, 559, 164, 25, "0", font=print_font_reg, size=8.5, align='center', color=(0.10, 0.12, 0.15))
+    draw_text_in_cell(268, 584, 164, 28, str(int(ref_u)), font=print_font_reg, size=8.5, align='center', color=(0.10, 0.12, 0.15))
+    draw_text_in_cell(268, 612, 164, 26, str(int(bill.units_consumed)), font=print_font_reg, size=8.5, align='center', color=(0.10, 0.12, 0.15))
+    draw_text_in_cell(268, 638, 164, 26, f"{(bill.energy_charges + bill.fixed_charges):,.2f}", font=print_font_reg, size=8.5, align='center', color=(0.10, 0.12, 0.15))
+    draw_text_in_cell(268, 664, 164, 26, "0.00", font=print_font_reg, size=8.5, align='center', color=(0.10, 0.12, 0.15))
+    draw_text_in_cell(268, 690, 164, 27, "0.00", font=print_font_reg, size=8.5, align='center', color=(0.10, 0.12, 0.15))
+    draw_text_in_cell(268, 717, 164, 27, "0.00", font=print_font_reg, size=8.5, align='center', color=(0.10, 0.12, 0.15))
+    draw_text_in_cell(268, 744, 164, 26, "0.00", font=print_font_reg, size=8.5, align='center', color=(0.10, 0.12, 0.15))
+
+    prov_val = float(consumer.get('provisional_bill_amount', 0.0) or 0.0)
+    prev_pay = float(consumer.get('previous_payment') or 0.0)
+    draw_text_in_cell(432, 612, 84, 26, f"{prov_val:,.2f}", font=print_font_reg, size=8.5, align='center', color=(0.10, 0.12, 0.15))
+    draw_text_in_cell(432, 717, 84, 27, f"{prev_pay:,.2f}", font=print_font_reg, size=8.5, align='center', color=(0.10, 0.12, 0.15))
+
+    # 7. Last Three Month Units Table (exact bounds: x = 86 to 516, y = 953 to 1033)
+    # Header row "Last Three Month Units" is above 953, and label col (86 to 188) is PRESERVED!
+    mask_cell(189, 954, 326, 78, bg_sample=(195, 960, 510, 1030), fallback=(0.804, 0.808, 0.808))
+    for vx in [188, 296, 402, 516]:
+        draw_v_line(vx, 953, 1033, (0.45, 0.45, 0.45), 0.55)
+    for hy in [953, 980, 1007, 1033]:
+        draw_h_line(86, 516, hy, (0.45, 0.45, 0.45), 0.55)
+
+    last_3 = consumer.get('last_3_months') or []
+    col_bounds = [(188, 108), (296, 106), (402, 114)]
+    for c_idx, p in enumerate(last_3[:3]):
+        if c_idx < len(col_bounds):
+            cx, cw = col_bounds[c_idx]
+            m_lbl = str(p.get('month', '')).upper()
+            u_lbl = str(int(p.get('units', 0)))
+            amt_lbl = f"{float(p.get('amount', 0.0)):,.2f}"
+            draw_text_in_cell(cx, 953, cw, 27, m_lbl, font=print_font_bold, size=7.8, align='center', color=(0.10, 0.12, 0.15))
+            draw_text_in_cell(cx, 980, cw, 27, u_lbl, font=print_font_reg, size=8.0, align='center', color=(0.10, 0.12, 0.15))
+            draw_text_in_cell(cx, 1007, cw, 26, amt_lbl, font=print_font_reg, size=8.0, align='center', color=(0.10, 0.12, 0.15))
+
+    # 8. Charges Details Table (x: 516 to 902, y: 439 to 1036)
+    # Header row: 439 to 467 ("Sr." | "Charges Details" | "Rupee") is PRESERVED!
+    # Rows 1 to 20: exact pixel ranges measured from PGVCL.jpeg
+    fixed_chg = bill.fixed_charges
+    energy_chg = bill.energy_charges
+    ujala_chg = float(consumer.get('ujala_charges', 0.0) or 0.0)
+    fppca_chg = bill.fppca_charges
+    reactive_chg = float(consumer.get('reactive_charge', 0.0) or 0.0)
+    duty_chg = bill.govt_duty
+    meter_chg = float(consumer.get('meter_charge', 0.0) or 0.0)
+    misc_chg = float(consumer.get('fuse_misc_charge', 0.0) or 0.0)
+    delay_chg = float(getattr(bill, 'delay_surcharge', 0.0) or 0.0)
+    arrear_val = float(getattr(bill, 'arrear', 0.0) or 0.0)
+    relief_val = float(consumer.get('govt_relief', 0.0) or 0.0)
+
+    total_1_to_9 = (
+        fixed_chg + energy_chg + ujala_chg + fppca_chg +
+        reactive_chg + duty_chg + meter_chg + misc_chg + delay_chg
+    )
+    total_10_11 = total_1_to_9 + prov_val
+    grand_total_val = total_10_11 + arrear_val
+    net_bill_val = grand_total_val - relief_val
+
+    charges_defs = [
+        # (row_num, y0, y1, value_str, is_handwritten, is_shaded)
+        (1,  467, 498,  f"{fixed_chg:,.2f}", False, False),
+        (2,  498, 531,  f"{energy_chg:,.2f}", False, False),
+        (3,  531, 562,  f"{ujala_chg:,.2f}" if ujala_chg > 0 else "", False, False),
+        (4,  562, 589,  f"{fppca_chg:,.2f}", False, False),
+        (5,  589, 615,  f"{reactive_chg:,.2f}" if reactive_chg > 0 else "", False, False),
+        (6,  615, 641,  f"{duty_chg:,.2f}", False, False),
+        (7,  641, 668,  f"{meter_chg:,.2f}" if meter_chg > 0 else "", False, False),
+        (8,  668, 694,  f"{misc_chg:,.2f}" if misc_chg > 0 else "0.00", False, False),
+        (9,  694, 721,  f"{delay_chg:,.2f}" if delay_chg > 0 else "0.00", False, False),
+        (10, 721, 747,  f"{total_1_to_9:,.2f}", True, True),
+        (11, 747, 774,  f"{prov_val:,.2f}" if prov_val > 0 else "", False, False),
+        (12, 774, 800,  f"{total_10_11:,.2f}", False, False),
+        (13, 800, 827,  f"{arrear_val:,.2f}", False, False),
+        (14, 827, 874,  "", False, False),
+        (15, 874, 901,  "", False, False),
+        (16, 901, 928,  f"{grand_total_val:,.2f}", False, False),
+        (17, 928, 956,  "", False, False),
+        (18, 956, 982,  f"-{relief_val:,.2f}" if relief_val > 0 else "", False, False),
+        (19, 982, 1011, "", False, False),
+        (20, 1011, 1036, f"{net_bill_val:,.2f}", True, True),
+    ]
+
+    # Mask only the Rupee value cells with appropriate regional / shaded tone
+    for row_num, y0, y1, val, is_handwritten, is_shaded in charges_defs:
+        if is_shaded:
+            if row_num == 10:
+                bg = (0.816, 0.827, 0.847)
+            else:
+                bg = (0.722, 0.737, 0.773)
+        else:
+            bg = (0.922, 0.925, 0.918)
+        mask_cell(795, y0 + 1, 106, (y1 - y0) - 2, fallback=bg)
+
+    # Redraw Charges table grid lines
+    draw_v_line(794, 439, 1036, (0.45, 0.45, 0.45), 0.55)
+    draw_v_line(902, 439, 1036, (0.35, 0.35, 0.35), 0.65)
+    chg_h_lines = [439, 467, 498, 531, 562, 589, 615, 641, 668, 694, 721, 747, 774, 800, 827, 874, 901, 928, 956, 982, 1011, 1036]
+    for hy in chg_h_lines:
+        draw_h_line(794, 902, hy, (0.45, 0.45, 0.45), 0.55)
+
+    # Render charge amounts:
+    for row_num, y0, y1, val, is_handwritten, is_shaded in charges_defs:
+        if val:
+            row_ph = y1 - y0
+            if is_handwritten:
+                sz = 9.5 if row_num == 20 else 9.2
+                draw_handwritten_in_cell(794, y0, 108, row_ph, val, font=hand_font_name, size=sz, align='right', pad_x=8.0)
+            else:
+                sz = 8.5 if row_num == 16 else 8.2
+                draw_text_in_cell(794, y0, 108, row_ph, val, font=print_font_reg, size=sz, align='right', pad_x=8.0, color=(0.10, 0.12, 0.15))
+
+    # 9. Bottom Office Slip (exact bounds: x = 86 to 910, y = 1142 to 1222)
+    # Row 1 (Headers: 1142 to 1169) and Row 3 (Labels: 1196 to 1222) are PRESERVED!
+    # Row 2 (Values: 1169 to 1196): Cleanly mask the old scanned values so cells remain blank as required
+    mask_cell(88, 1170, 240, 25, bg_sample=(100, 1172, 320, 1194), fallback=(0.788, 0.796, 0.792))
+    mask_cell(760, 1170, 148, 25, bg_sample=(765, 1172, 905, 1194), fallback=(0.788, 0.796, 0.792))
+
+    draw_v_line(86, 1169, 1196, (0.45, 0.45, 0.45), 0.55)
+    draw_v_line(330, 1169, 1196, (0.45, 0.45, 0.45), 0.55)
+    draw_v_line(758, 1169, 1196, (0.45, 0.45, 0.45), 0.55)
+    draw_v_line(910, 1169, 1196, (0.45, 0.45, 0.45), 0.55)
+    draw_h_line(86, 910, 1169, (0.45, 0.45, 0.45), 0.55)
+    draw_h_line(86, 910, 1196, (0.45, 0.45, 0.45), 0.55)
+    # Row 2 value cells kept completely blank per requirement: "Do not put Consumer No into Payment Date... Keep all blank cells blank"
+
+    c.save()
+    overlay_buf.seek(0)
+    ov_page = PdfReader(overlay_buf).pages[0]
+    base_page.merge_page(ov_page)
+
+    writer = PdfWriter()
+    writer.add_page(base_page)
+
+    output_dir = os.path.dirname(output_path) or "."
+    os.makedirs(output_dir, exist_ok=True)
+    with open(output_path, "wb") as f_out:
+        writer.write(f_out)
+
+    return output_path
+
+
 def generate_bill_pdf(template_path: Optional[str] = None, consumer: dict = None, bill = None, output_path: str = "",
                       consumption_history: dict = None, template_structure: Optional[TemplateStructure] = None) -> str:
     """
-    Generates a single filled PDF invoice for one consumer record using the specified template PDF.
+    Generates a single filled PDF invoice for one consumer record using the specified template PDF or PGVCL template.
     """
     if not template_path:
         template_path = get_template_for_billing_month(consumer)
@@ -1179,6 +1662,11 @@ def generate_bill_pdf(template_path: Optional[str] = None, consumer: dict = None
 
     # Automated check suite before rendering & saving (Requirement 12)
     validate_bill_generation_data(values, bill, consumer, consumption_history)
+
+    # Check for PGVCL template
+    is_pgvcl = template_structure.layout_type == "pgvcl" or template_path.lower().endswith((".jpeg", ".jpg", ".png"))
+    if is_pgvcl:
+        return _generate_pgvcl_bill_pdf(template_path, consumer, bill, values, output_path, template_structure)
 
     reader = PdfReader(template_path)
     registered_fonts = font_manager.ensure_template_fonts_registered(template_path)

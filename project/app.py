@@ -221,9 +221,15 @@ def preview():
     excel_path = os.path.join(preview_dir, "data.xlsx")
     excel_file.save(excel_path)
 
+    bill_type = request.form.get("bill_type") or request.args.get("bill_type") or "Torrent Bill"
+    is_pgvcl = "pgvcl" in str(bill_type).lower()
+
     if template_file and template_file.filename != "" and _allowed_file(template_file.filename, config.ALLOWED_PDF_EXTENSIONS):
         template_path = os.path.join(preview_dir, "template.pdf")
         template_file.save(template_path)
+        is_custom_template = True
+    elif is_pgvcl:
+        template_path = template_detector.PGVCL_TEMPLATE_PATH
         is_custom_template = True
     else:
         template_path = None
@@ -418,7 +424,10 @@ def generate():
     excel_path = os.path.join(job_upload_dir, "data.xlsx")
     excel_file.save(excel_path)
 
-    # Use uploaded template if provided; otherwise select template strictly according to billing month & year
+    bill_type = request.form.get("bill_type") or "Torrent Bill"
+    is_pgvcl = "pgvcl" in str(bill_type).lower()
+
+    # Use uploaded template if provided; or PGVCL template if PGVCL Bill is selected; otherwise select template strictly according to billing month & year
     if template_file and template_file.filename != "":
         if not _allowed_file(template_file.filename, config.ALLOWED_PDF_EXTENSIONS):
             return jsonify({"error": "Template must be a .pdf file."}), 400
@@ -426,6 +435,12 @@ def generate():
         template_file.save(template_path)
         is_custom_template = True
         template_display_name = template_file.filename
+        template_structure = template_detector.detect_template_structure(template_path)
+        template_structure.template_name = template_display_name
+    elif is_pgvcl:
+        template_path = template_detector.PGVCL_TEMPLATE_PATH
+        is_custom_template = True
+        template_display_name = "PGVCL.jpeg"
         template_structure = template_detector.detect_template_structure(template_path)
         template_structure.template_name = template_display_name
     else:
