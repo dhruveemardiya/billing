@@ -108,5 +108,38 @@
     "meter_status": "1",
     "mf": "1.0",
     "mtr_chg_code": "A"
+  },
+  "123456789": {
+    "customer_id": "123456789",
+    "meter_no": "ONE-2322132",
+    "census_code": "12102121",
+    "feeder_code": "4",
+    "route_code": "3/4/5/47",
+    "base_bill_no": 3004327648,
+    "meter_status": "1",
+    "mf": "1.0",
+    "mtr_chg_code": "A"
+  },
+  "98765456": {
+    "customer_id": "98765456",
+    "meter_no": "ONE-4490615",
+    "census_code": "12102645",
+    "feeder_code": "2",
+    "route_code": "3/4/5/18",
+    "base_bill_no": 3004345541,
+    "meter_status": "1",
+    "mf": "1.0",
+    "mtr_chg_code": "A"
+  },
+  "1256656": {
+    "customer_id": "1256656",
+    "meter_no": "ONE-1143743",
+    "census_code": "12102596",
+    "feeder_code": "4",
+    "route_code": "3/4/5/37",
+    "base_bill_no": 3004300092,
+    "meter_status": "1",
+    "mf": "1.0",
+    "mtr_chg_code": "A"
   }
 }

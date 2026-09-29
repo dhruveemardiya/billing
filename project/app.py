@@ -8,6 +8,8 @@ reports warnings for unmapped items, and generates 1 PDF per Excel record.
 """
 
 import os
+import sys
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import uuid
 import json
 import re

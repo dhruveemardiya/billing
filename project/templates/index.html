@@ -2307,6 +2307,10 @@
         end_month: endFormatted,
         start_reading: parseFloat(startReadingInput.value),
         reference_units: parseFloat(unitsInput.value),
+        village_name: document.getElementById("direct_village_name")?.value.trim() || "",
+        village: document.getElementById("direct_village")?.value.trim() || "",
+        taluka: document.getElementById("direct_taluka")?.value.trim() || "",
+        district: document.getElementById("direct_district")?.value.trim() || "",
       };
 
       directGenerateBtn.disabled = true;
