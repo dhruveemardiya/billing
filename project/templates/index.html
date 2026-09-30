@@ -612,27 +612,47 @@
 
     .bill-type-card {
       position: relative;
-      display: block;
+      display: flex;
+      align-items: center;
+      min-height: 72px;
       background: #ffffff;
       border: 2px solid var(--border-light);
       border-radius: var(--radius-md);
-      padding: 16px 18px;
+      padding: 14px 18px;
       cursor: pointer;
+      box-sizing: border-box;
       transition: all 0.22s cubic-bezier(0.16, 1, 0.3, 1);
       box-shadow: var(--shadow-sm);
     }
 
-    .bill-type-card:hover {
+    .bill-type-card:hover,
+    .bill-type-card.torrent:hover {
       border-color: #a7f3d0;
       background: #fafdfb;
       transform: translateY(-2px);
       box-shadow: 0 6px 16px rgba(5, 150, 105, 0.08);
     }
 
-    .bill-type-card.selected {
+    .bill-type-card.pgvcl:hover {
+      border-color: #bfdbfe;
+      background: #f8faff;
+      transform: translateY(-2px);
+      box-shadow: 0 6px 16px rgba(37, 99, 235, 0.08);
+    }
+
+    /* Torrent Bill Selected - Green Theme */
+    .bill-type-card.selected,
+    .bill-type-card.torrent.selected {
       border-color: var(--primary-green);
       background: linear-gradient(135deg, #ffffff 0%, #f0fdf4 100%);
       box-shadow: 0 6px 20px rgba(5, 150, 105, 0.16), 0 0 0 3px rgba(16, 185, 129, 0.15);
+    }
+
+    /* PGVCL Bill Selected - Blue Theme */
+    .bill-type-card.pgvcl.selected {
+      border-color: #2563eb;
+      background: linear-gradient(135deg, #ffffff 0%, #eff6ff 100%);
+      box-shadow: 0 6px 20px rgba(37, 99, 235, 0.16), 0 0 0 3px rgba(37, 99, 235, 0.15);
     }
 
     .bill-type-radio-input,
@@ -644,26 +664,32 @@
 
     .bill-type-content {
       display: flex;
-      flex-direction: column;
-      gap: 8px;
-    }
-
-    .bill-type-top {
-      display: flex;
       align-items: center;
       justify-content: space-between;
-      gap: 10px;
+      width: 100%;
+      gap: 16px;
+      box-sizing: border-box;
+    }
+
+    .bill-type-main {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      min-width: 0;
     }
 
     .bill-type-logo-badge {
-      width: 36px;
-      height: 36px;
+      width: 40px;
+      height: 40px;
       border-radius: 10px;
       display: flex;
       align-items: center;
       justify-content: center;
       font-weight: 800;
       flex-shrink: 0;
+      flex-grow: 0;
+      transition: all 0.2s ease;
+      box-sizing: border-box;
     }
 
     .bill-type-logo-badge.torrent {
@@ -674,24 +700,16 @@
 
     .bill-type-logo-badge.pgvcl {
       background: linear-gradient(135deg, #eff6ff 0%, #dbeafe 100%);
-      color: #1d4ed8;
+      color: #2563eb;
       border: 1.5px solid #bfdbfe;
     }
 
-    .bill-type-badge-pill {
-      font-size: 0.72rem;
-      font-weight: 700;
-      padding: 3px 9px;
-      border-radius: var(--radius-full);
-      background: #f1f5f9;
-      color: var(--text-muted);
-      border: 1px solid var(--border-light);
-    }
-
-    .bill-type-badge-pill.pgvcl {
-      background: #eff6ff;
-      color: #1d4ed8;
-      border-color: #bfdbfe;
+    .bill-type-logo-img {
+      width: 26px;
+      height: 26px;
+      object-fit: contain;
+      display: block;
+      border-radius: 3px;
     }
 
     .bill-type-radio-circle {
@@ -702,16 +720,34 @@
       display: flex;
       align-items: center;
       justify-content: center;
+      flex-shrink: 0;
+      flex-grow: 0;
       transition: all 0.2s ease;
       margin-left: auto;
+      box-sizing: border-box;
     }
 
-    .bill-type-card.selected .bill-type-radio-circle {
+    .bill-type-card.selected .bill-type-radio-circle,
+    .bill-type-card.torrent.selected .bill-type-radio-circle {
       border-color: var(--primary-green);
       background: var(--primary-green);
     }
 
-    .bill-type-card.selected .bill-type-radio-circle::after {
+    .bill-type-card.selected .bill-type-radio-circle::after,
+    .bill-type-card.torrent.selected .bill-type-radio-circle::after {
+      content: "";
+      width: 7px;
+      height: 7px;
+      border-radius: 50%;
+      background: #ffffff;
+    }
+
+    .bill-type-card.pgvcl.selected .bill-type-radio-circle {
+      border-color: #2563eb;
+      background: #2563eb;
+    }
+
+    .bill-type-card.pgvcl.selected .bill-type-radio-circle::after {
       content: "";
       width: 7px;
       height: 7px;
@@ -721,20 +757,539 @@
 
     .bill-type-name {
       font-size: 1.05rem;
-      font-weight: 800;
+      font-weight: 700;
+      line-height: 1.25;
+      margin: 0;
+      padding: 0;
       color: var(--text-dark-green);
       letter-spacing: -0.015em;
+      transition: color 0.2s ease;
     }
 
-    .bill-type-card.selected .bill-type-name {
+    .bill-type-card.selected .bill-type-name,
+    .bill-type-card.torrent.selected .bill-type-name {
       color: var(--primary-green-deep);
     }
 
-    .bill-type-caption {
-      font-size: 0.8rem;
+    .bill-type-card.pgvcl.selected .bill-type-name {
+      color: #1d4ed8;
+    }
+
+    /* Provider Specific Conditional Fields & Sections */
+    .provider-specific-section {
+      transition: all 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+    }
+    .provider-specific-section[style*="display: none"] {
+      display: none !important;
+    }
+    .pgvcl-badge-blue {
+      background: rgba(37, 99, 235, 0.12) !important;
+      color: #2563eb !important;
+      border-color: rgba(37, 99, 235, 0.25) !important;
+    }
+
+    /* ==========================================================================
+       PROVIDER SECTION THEMES (Dynamic Blue & Green Complete Form Styling)
+       ========================================================================== */
+
+    /* Base smooth transition for themed elements */
+    .form-section-card,
+    .section-icon,
+    .derived-reading-card,
+    .bill-result-card,
+    .btn-generate,
+    .btn-download-pdf,
+    .batch-top-banner {
+      transition: background 0.25s ease, border-color 0.25s ease, box-shadow 0.25s ease, color 0.25s ease;
+    }
+
+    /* --------------------------------------------------------------------------
+       PGVCL Bill — BLUE THEME (Entire sections consistently blue-themed)
+       - Consumer Information
+       - PGVCL Location & Administrative Details
+       - Billing Period
+       - Meter & Consumption
+       - Generated PGVCL Bill
+       -------------------------------------------------------------------------- */
+
+    /* Section Cards in PGVCL mode (excluding selector card) */
+    #direct-bill-section.theme-pgvcl .form-section-card:not(.bill-type-section-card),
+    #direct-bill-section.theme-pgvcl #consumer-info-section,
+    #direct-bill-section.theme-pgvcl #billing-period-section,
+    #direct-bill-section.theme-pgvcl #meter-consumption-section,
+    #pgvcl-config-section .form-section-card {
+      background: linear-gradient(180deg, #f8faff 0%, #f0f6ff 100%);
+      border: 1.5px solid #bfdbfe;
+      box-shadow: 0 4px 16px rgba(37, 99, 235, 0.05);
+    }
+
+    #direct-bill-section.theme-pgvcl .form-section-card:not(.bill-type-section-card):hover,
+    #pgvcl-config-section .form-section-card:hover {
+      border-color: #93c5fd;
+      box-shadow: 0 6px 20px rgba(37, 99, 235, 0.10);
+    }
+
+    /* Section Headers & Dividers */
+    #direct-bill-section.theme-pgvcl .form-section-card:not(.bill-type-section-card) .section-header,
+    #pgvcl-config-section .section-header {
+      border-bottom: 1px solid #dbeafe;
+    }
+
+    /* Section Icons */
+    #direct-bill-section.theme-pgvcl .form-section-card:not(.bill-type-section-card) .section-icon,
+    #pgvcl-config-section .section-icon.pgvcl-icon {
+      background: #eff6ff;
+      border: 1.5px solid #bfdbfe;
+      color: #2563eb;
+    }
+
+    /* Section Titles & Descriptions */
+    #direct-bill-section.theme-pgvcl .form-section-card:not(.bill-type-section-card) .section-title-wrap h3,
+    #pgvcl-config-section .section-title-wrap h3 {
+      color: #1e3a8a;
+    }
+
+    #direct-bill-section.theme-pgvcl .form-section-card:not(.bill-type-section-card) .section-title-wrap p,
+    #pgvcl-config-section .section-title-wrap p {
+      color: #475569;
+    }
+
+    /* Form Labels, Accents & Badges */
+    #direct-bill-section.theme-pgvcl .form-input-label {
+      color: #1e293b;
+    }
+
+    #direct-bill-section.theme-pgvcl .badge-tag.highlight {
+      background: #eff6ff;
+      color: #1d4ed8;
+      border-color: #bfdbfe;
+    }
+
+    /* Input Fields (Clean and readable with subtle light-blue background tint) */
+    #direct-bill-section.theme-pgvcl .form-control,
+    #pgvcl-config-section .form-control {
+      background: #fbfdff;
+      border: 1.5px solid #cbd5e1;
+      color: #0f172a;
+    }
+
+    #direct-bill-section.theme-pgvcl .form-control:focus,
+    #pgvcl-config-section .form-control:focus {
+      background: #ffffff;
+      border-color: #2563eb;
+      box-shadow: 0 0 0 3.5px rgba(37, 99, 235, 0.16);
+    }
+
+    /* Derived End Reading Card (Meter & Consumption) */
+    #direct-bill-section.theme-pgvcl .derived-reading-card {
+      background: linear-gradient(135deg, #eff6ff 0%, #dbeafe 100%);
+      border: 1.5px solid #bfdbfe;
+      box-shadow: 0 4px 14px rgba(37, 99, 235, 0.08);
+    }
+
+    #direct-bill-section.theme-pgvcl .derived-reading-card .derived-icon {
+      background: #ffffff;
+      border: 1.5px solid #bfdbfe;
+      color: #2563eb;
+      box-shadow: 0 2px 8px rgba(37, 99, 235, 0.12);
+    }
+
+    #direct-bill-section.theme-pgvcl .derived-reading-card .derived-details h4 {
+      color: #1e40af;
+    }
+
+    #direct-bill-section.theme-pgvcl .derived-reading-card .derived-details .derived-value {
+      color: #1e3a8a;
+    }
+
+    #direct-bill-section.theme-pgvcl .derived-reading-card .derived-details .derived-sub {
+      color: #475569;
+    }
+
+    #direct-bill-section.theme-pgvcl .derived-reading-card .param-pill.primary {
+      background: #2563eb;
+      border-color: #2563eb;
+      color: #ffffff;
+    }
+
+    #direct-bill-section.theme-pgvcl .derived-reading-card .param-pill:not(.primary) {
+      background: #ffffff;
+      border: 1.5px solid #bfdbfe;
+      color: #1d4ed8;
+      box-shadow: 0 1px 3px rgba(37, 99, 235, 0.08);
+    }
+
+    /* Generate Button (PGVCL) */
+    #direct-bill-section.theme-pgvcl .btn-generate {
+      background: linear-gradient(135deg, #2563eb 0%, #1d4ed8 100%);
+      box-shadow: 0 8px 20px -4px rgba(37, 99, 235, 0.38);
+    }
+
+    #direct-bill-section.theme-pgvcl .btn-generate:hover:not(:disabled) {
+      background: linear-gradient(135deg, #1d4ed8 0%, #1e40af 100%);
+      box-shadow: 0 12px 26px -4px rgba(37, 99, 235, 0.48);
+    }
+
+    /* Generated PGVCL Bill Results Card */
+    .bill-result-card.theme-pgvcl {
+      background: linear-gradient(180deg, #f8faff 0%, #f0f6ff 100%);
+      border: 1.5px solid #bfdbfe;
+      box-shadow: 0 12px 32px -4px rgba(37, 99, 235, 0.10);
+    }
+
+    .bill-result-card.theme-pgvcl .result-header {
+      border-bottom: 1.5px solid #dbeafe;
+    }
+
+    .bill-result-card.theme-pgvcl .result-badge {
+      color: #1e3a8a;
+    }
+
+    .bill-result-card.theme-pgvcl .result-badge svg {
+      color: #2563eb;
+    }
+
+    .bill-result-card.theme-pgvcl .badge-tag.highlight {
+      background: #eff6ff;
+      color: #1d4ed8;
+      border-color: #bfdbfe;
+    }
+
+    .bill-result-card.theme-pgvcl .result-meta-item {
+      background: #ffffff;
+      border-color: #dbeafe;
+    }
+
+    .bill-result-card.theme-pgvcl .result-meta-item span {
+      color: #64748b;
+    }
+
+    .bill-result-card.theme-pgvcl .result-meta-item strong {
+      color: #1e3a8a;
+    }
+
+    .bill-result-card.theme-pgvcl .result-meta-item.highlight {
+      background: #eff6ff;
+      border-color: #bfdbfe;
+    }
+
+    .bill-result-card.theme-pgvcl .result-meta-item.highlight strong {
+      color: #2563eb;
+    }
+
+    .bill-result-card.theme-pgvcl .btn-preview {
+      background: #ffffff;
+      border: 1.5px solid #bfdbfe;
+      color: #1e3a8a;
+    }
+
+    .bill-result-card.theme-pgvcl .btn-preview:hover:not(:disabled) {
+      background: #eff6ff;
+      border-color: #2563eb;
+      color: #2563eb;
+      box-shadow: 0 6px 16px rgba(37, 99, 235, 0.15);
+    }
+
+    .bill-result-card.theme-pgvcl .btn-download-pdf {
+      background: linear-gradient(135deg, #2563eb 0%, #1d4ed8 100%);
+      box-shadow: 0 6px 18px rgba(37, 99, 235, 0.32);
+    }
+
+    .bill-result-card.theme-pgvcl .btn-download-pdf:hover {
+      background: linear-gradient(135deg, #1d4ed8 0%, #1e40af 100%);
+      box-shadow: 0 10px 24px rgba(37, 99, 235, 0.42);
+    }
+
+    .bill-result-card.theme-pgvcl .batch-top-banner {
+      background: #eff6ff;
+      border: 1.5px solid #bfdbfe;
+    }
+
+    .bill-result-card.theme-pgvcl .batch-meta-title {
+      color: #1e3a8a;
+    }
+
+    .bill-result-card.theme-pgvcl .batch-meta-sub {
+      color: #3b82f6;
+    }
+
+    .bill-result-card.theme-pgvcl .btn-download-zip {
+      background: linear-gradient(135deg, #2563eb 0%, #1d4ed8 100%);
+      box-shadow: 0 4px 14px rgba(37, 99, 235, 0.28);
+    }
+
+    .bill-result-card.theme-pgvcl .btn-download-zip:hover {
+      background: linear-gradient(135deg, #1d4ed8 0%, #1e40af 100%);
+      box-shadow: 0 8px 20px rgba(37, 99, 235, 0.38);
+    }
+
+    .bill-result-card.theme-pgvcl .batch-table-container {
+      border-color: #dbeafe;
+    }
+
+    .bill-result-card.theme-pgvcl .batch-table th {
+      background: #eff6ff;
+      color: #1e3a8a;
+    }
+
+    .bill-result-card.theme-pgvcl .batch-btn-sm.download-btn {
+      background: #2563eb;
+    }
+
+    .bill-result-card.theme-pgvcl .batch-btn-sm.download-btn:hover {
+      background: #1d4ed8;
+    }
+
+    .bill-result-card.theme-pgvcl .batch-btn-sm.btn-row-preview {
+      border: 1px solid #bfdbfe;
+      color: #1e3a8a;
+      background: #ffffff;
+    }
+
+    .bill-result-card.theme-pgvcl .batch-btn-sm.btn-row-preview:hover {
+      border-color: #2563eb;
+      color: #2563eb;
+      background: #eff6ff;
+    }
+
+    /* --------------------------------------------------------------------------
+       Torrent Bill — GREEN THEME (Entire sections consistently green-themed)
+       - Consumer Information
+       - Billing Period
+       - Meter & Consumption
+       - Generated Torrent Bill
+       -------------------------------------------------------------------------- */
+
+    /* Section Cards in Torrent mode (excluding selector card) */
+    #direct-bill-section.theme-torrent .form-section-card:not(.bill-type-section-card),
+    #direct-bill-section.theme-torrent #consumer-info-section,
+    #direct-bill-section.theme-torrent #billing-period-section,
+    #direct-bill-section.theme-torrent #meter-consumption-section {
+      background: linear-gradient(180deg, #fafdfb 0%, #f0fdf4 100%);
+      border: 1.5px solid #a7f3d0;
+      box-shadow: 0 4px 16px rgba(5, 150, 105, 0.05);
+    }
+
+    #direct-bill-section.theme-torrent .form-section-card:not(.bill-type-section-card):hover {
+      border-color: #6ee7b7;
+      box-shadow: 0 6px 20px rgba(5, 150, 105, 0.09);
+    }
+
+    /* Section Headers & Dividers */
+    #direct-bill-section.theme-torrent .form-section-card:not(.bill-type-section-card) .section-header {
+      border-bottom: 1px solid #d1fae5;
+    }
+
+    /* Section Icons */
+    #direct-bill-section.theme-torrent .form-section-card:not(.bill-type-section-card) .section-icon {
+      background: #f0fdf4;
+      border: 1.5px solid #a7f3d0;
+      color: #059669;
+    }
+
+    /* Section Titles & Descriptions */
+    #direct-bill-section.theme-torrent .form-section-card:not(.bill-type-section-card) .section-title-wrap h3 {
+      color: var(--text-dark-green);
+    }
+
+    #direct-bill-section.theme-torrent .form-section-card:not(.bill-type-section-card) .section-title-wrap p {
       color: var(--text-muted);
-      line-height: 1.4;
-      font-weight: 500;
+    }
+
+    /* Form Labels, Accents & Badges */
+    #direct-bill-section.theme-torrent .form-input-label {
+      color: var(--text-subtle);
+    }
+
+    #direct-bill-section.theme-torrent .badge-tag.highlight {
+      background: var(--mint-light);
+      color: var(--text-medium-green);
+      border-color: #bbf7d0;
+    }
+
+    /* Input Fields (Clean and readable with subtle light-green background tint) */
+    #direct-bill-section.theme-torrent .form-control {
+      background: #fcfdfd;
+      border: 1.5px solid #cbd5e1;
+      color: var(--text-main);
+    }
+
+    #direct-bill-section.theme-torrent .form-control:focus {
+      background: #ffffff;
+      border-color: var(--emerald-accent);
+      box-shadow: 0 0 0 3.5px rgba(16, 185, 129, 0.18);
+    }
+
+    /* Derived End Reading Card (Meter & Consumption) */
+    #direct-bill-section.theme-torrent .derived-reading-card {
+      background: linear-gradient(135deg, #f0fdf4 0%, #ecfdf5 100%);
+      border: 1.5px solid var(--mint-border);
+      box-shadow: 0 4px 14px rgba(5, 150, 105, 0.05);
+    }
+
+    #direct-bill-section.theme-torrent .derived-reading-card .derived-icon {
+      background: #ffffff;
+      border: 1.5px solid var(--mint-border);
+      color: var(--primary-green);
+      box-shadow: 0 2px 8px rgba(5, 150, 105, 0.1);
+    }
+
+    #direct-bill-section.theme-torrent .derived-reading-card .derived-details h4 {
+      color: var(--text-medium-green);
+    }
+
+    #direct-bill-section.theme-torrent .derived-reading-card .derived-details .derived-value {
+      color: var(--text-dark-green);
+    }
+
+    #direct-bill-section.theme-torrent .derived-reading-card .derived-details .derived-sub {
+      color: var(--text-muted);
+    }
+
+    #direct-bill-section.theme-torrent .derived-reading-card .param-pill.primary {
+      background: var(--primary-green);
+      border-color: var(--primary-green);
+      color: #ffffff;
+    }
+
+    #direct-bill-section.theme-torrent .derived-reading-card .param-pill:not(.primary) {
+      background: #ffffff;
+      border: 1.5px solid var(--mint-border);
+      color: var(--text-medium-green);
+      box-shadow: 0 1px 3px rgba(5, 150, 105, 0.06);
+    }
+
+    /* Generate Button (Torrent) */
+    #direct-bill-section.theme-torrent .btn-generate {
+      background: linear-gradient(135deg, #059669 0%, #047857 100%);
+      box-shadow: 0 8px 20px -4px rgba(5, 150, 105, 0.38);
+    }
+
+    #direct-bill-section.theme-torrent .btn-generate:hover:not(:disabled) {
+      background: linear-gradient(135deg, #047857 0%, #064e3b 100%);
+      box-shadow: 0 12px 26px -4px rgba(5, 150, 105, 0.48);
+    }
+
+    /* Generated Torrent Bill Results Card */
+    .bill-result-card.theme-torrent {
+      background: linear-gradient(180deg, #fafdfb 0%, #f0fdf4 100%);
+      border: 1.5px solid #a7f3d0;
+      box-shadow: 0 12px 32px -4px rgba(5, 150, 105, 0.10);
+    }
+
+    .bill-result-card.theme-torrent .result-header {
+      border-bottom: 1.5px solid #d1fae5;
+    }
+
+    .bill-result-card.theme-torrent .result-badge {
+      color: var(--text-dark-green);
+    }
+
+    .bill-result-card.theme-torrent .result-badge svg {
+      color: var(--primary-green);
+    }
+
+    .bill-result-card.theme-torrent .badge-tag.highlight {
+      background: var(--mint-light);
+      color: var(--text-medium-green);
+      border-color: #bbf7d0;
+    }
+
+    .bill-result-card.theme-torrent .result-meta-item {
+      background: #ffffff;
+      border-color: #d1fae5;
+    }
+
+    .bill-result-card.theme-torrent .result-meta-item span {
+      color: var(--text-muted);
+    }
+
+    .bill-result-card.theme-torrent .result-meta-item strong {
+      color: var(--text-dark-green);
+    }
+
+    .bill-result-card.theme-torrent .result-meta-item.highlight {
+      background: var(--mint-light);
+      border-color: #bbf7d0;
+    }
+
+    .bill-result-card.theme-torrent .result-meta-item.highlight strong {
+      color: var(--primary-green);
+    }
+
+    .bill-result-card.theme-torrent .btn-preview {
+      background: #ffffff;
+      border: 1.5px solid var(--mint-border);
+      color: var(--text-dark-green);
+    }
+
+    .bill-result-card.theme-torrent .btn-preview:hover:not(:disabled) {
+      background: var(--mint-light);
+      border-color: var(--primary-green);
+      color: var(--primary-green);
+      box-shadow: 0 6px 16px rgba(16, 185, 129, 0.15);
+    }
+
+    .bill-result-card.theme-torrent .btn-download-pdf {
+      background: linear-gradient(135deg, #059669 0%, #047857 100%);
+      box-shadow: 0 6px 18px rgba(5, 150, 105, 0.32);
+    }
+
+    .bill-result-card.theme-torrent .btn-download-pdf:hover {
+      background: linear-gradient(135deg, #047857 0%, #064e3b 100%);
+      box-shadow: 0 10px 24px rgba(5, 150, 105, 0.42);
+    }
+
+    .bill-result-card.theme-torrent .batch-top-banner {
+      background: var(--mint-light);
+      border: 1.5px solid var(--mint-border);
+    }
+
+    .bill-result-card.theme-torrent .batch-meta-title {
+      color: var(--text-dark-green);
+    }
+
+    .bill-result-card.theme-torrent .batch-meta-sub {
+      color: var(--text-medium-green);
+    }
+
+    .bill-result-card.theme-torrent .btn-download-zip {
+      background: linear-gradient(135deg, #059669 0%, #047857 100%);
+      box-shadow: 0 4px 14px rgba(5, 150, 105, 0.28);
+    }
+
+    .bill-result-card.theme-torrent .btn-download-zip:hover {
+      background: linear-gradient(135deg, #047857 0%, #064e3b 100%);
+      box-shadow: 0 8px 20px rgba(5, 150, 105, 0.38);
+    }
+
+    .bill-result-card.theme-torrent .batch-table-container {
+      border-color: #e2e8f0;
+    }
+
+    .bill-result-card.theme-torrent .batch-table th {
+      background: #f8fafc;
+      color: var(--text-dark-green);
+    }
+
+    .bill-result-card.theme-torrent .batch-btn-sm.download-btn {
+      background: var(--primary-green);
+    }
+
+    .bill-result-card.theme-torrent .batch-btn-sm.download-btn:hover {
+      background: #047857;
+    }
+
+    .bill-result-card.theme-torrent .batch-btn-sm.btn-row-preview {
+      border: 1px solid var(--mint-border);
+      color: var(--text-dark-green);
+      background: #ffffff;
+    }
+
+    .bill-result-card.theme-torrent .batch-btn-sm.btn-row-preview:hover {
+      border-color: var(--primary-green);
+      color: var(--primary-green);
+      background: var(--mint-light);
     }
 
     /* Results Card */
@@ -1477,7 +2032,7 @@
         </div>
 
         <!-- Section 1: Direct Bill Form -->
-        <div id="direct-bill-section" role="tabpanel" aria-labelledby="tab-direct-btn">
+        <div id="direct-bill-section" class="theme-torrent" role="tabpanel" aria-labelledby="tab-direct-btn">
           <form id="direct-bill-form">
             <div class="form-sections-stack">
 
@@ -1499,46 +2054,39 @@
 
                 <div class="bill-type-selector-grid" role="radiogroup" aria-label="Bill Type Selection" aria-required="true">
                   <!-- Torrent Bill Choice -->
-                  <label class="bill-type-card selected" id="bill-type-torrent-card">
+                  <label class="bill-type-card torrent selected" id="bill-type-torrent-card">
                     <input type="radio" name="bill_type" id="bill_type_torrent" value="Torrent Bill" class="bill-type-radio-input" checked required>
                     <div class="bill-type-content">
-                      <div class="bill-type-top">
-                        <div class="bill-type-logo-badge torrent">
-                          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round">
+                      <div class="bill-type-main">
+                        <div class="bill-type-logo-badge torrent" title="Torrent Power Logo">
+                          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round">
                             <polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2" />
                           </svg>
                         </div>
-                        <span class="bill-type-badge-pill">Torrent Power</span>
-                        <div class="bill-type-radio-circle"></div>
+                        <div class="bill-type-name">Torrent Bill</div>
                       </div>
-                      <div class="bill-type-name">Torrent Bill</div>
-                      <div class="bill-type-caption">Standard Torrent Power bill template with dynamic consumption donut & multi-period chart.</div>
+                      <div class="bill-type-radio-circle"></div>
                     </div>
                   </label>
 
                   <!-- PGVCL Bill Choice -->
-                  <label class="bill-type-card" id="bill-type-pgvcl-card">
+                  <label class="bill-type-card pgvcl" id="bill-type-pgvcl-card">
                     <input type="radio" name="bill_type" id="bill_type_pgvcl" value="PGVCL Bill" class="bill-type-radio-input" required>
                     <div class="bill-type-content">
-                      <div class="bill-type-top">
-                        <div class="bill-type-logo-badge pgvcl">
-                          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3">
-                            <rect x="3" y="3" width="18" height="18" rx="2" />
-                            <path d="M7 7h10M7 12h10M7 17h6" />
-                          </svg>
+                      <div class="bill-type-main">
+                        <div class="bill-type-logo-badge pgvcl" title="PGVCL Official Logo">
+                          <img src="{{ url_for('static', filename='images/pgvcl_logo.png') }}" alt="PGVCL Logo" class="bill-type-logo-img" />
                         </div>
-                        <span class="bill-type-badge-pill pgvcl">pgvcl.jpeg</span>
-                        <div class="bill-type-radio-circle"></div>
+                        <div class="bill-type-name">PGVCL Bill</div>
                       </div>
-                      <div class="bill-type-name">PGVCL Bill</div>
-                      <div class="bill-type-caption">Paschim Gujarat Vij Company Ltd official layout automatically using pgvcl.jpeg template.</div>
+                      <div class="bill-type-radio-circle"></div>
                     </div>
                   </label>
                 </div>
               </div>
 
               <!-- Sub-Section 1: Consumer Information -->
-              <div class="form-section-card">
+              <div class="form-section-card" id="consumer-info-section">
                 <div class="section-header">
                   <div class="section-icon">
                     <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2">
@@ -1553,11 +2101,11 @@
                 </div>
 
                 <div class="grid-2col">
-                  <!-- Customer ID -->
-                  <div class="form-group">
+                  <!-- Customer ID / Service No / Consumer No -->
+                  <div class="form-group" id="customer-id-form-group">
                     <label for="direct_customer_id" class="form-input-label">
-                      <span>Customer ID <span class="req-star">*</span></span>
-                      <span class="badge-tag">Unique ID</span>
+                      <span id="cust-id-label-text">Customer ID <span class="req-star">*</span></span>
+                      <span class="badge-tag" id="cust-id-badge-tag">Torrent Service No</span>
                     </label>
                     <input type="text" id="direct_customer_id" name="customer_id" class="form-control" placeholder="e.g. 743200550" required>
                   </div>
@@ -1576,39 +2124,6 @@
                       <span>Billing Address <span class="req-star">*</span></span>
                     </label>
                     <textarea id="direct_address" name="address" class="form-control" rows="2" placeholder="e.g. ADITYA BIRLA HOSPITAL ROAD BAJRANG VADI" required></textarea>
-                  </div>
-
-                  <!-- PGVCL Specific Location Fields (Optional) -->
-                  <div class="form-group pgvcl-location-group">
-                    <label for="direct_village_name" class="form-input-label">
-                      <span>Village Name</span>
-                      <span class="badge-tag">PGVCL</span>
-                    </label>
-                    <input type="text" id="direct_village_name" name="village_name" class="form-control" placeholder="e.g. VERAVAL">
-                  </div>
-
-                  <div class="form-group pgvcl-location-group">
-                    <label for="direct_village" class="form-input-label">
-                      <span>Village</span>
-                      <span class="badge-tag">PGVCL</span>
-                    </label>
-                    <input type="text" id="direct_village" name="village" class="form-control" placeholder="e.g. Veraval (M+OG) V">
-                  </div>
-
-                  <div class="form-group pgvcl-location-group">
-                    <label for="direct_taluka" class="form-input-label">
-                      <span>Taluka (TA)</span>
-                      <span class="badge-tag">PGVCL</span>
-                    </label>
-                    <input type="text" id="direct_taluka" name="taluka" class="form-control" placeholder="e.g. Veraval">
-                  </div>
-
-                  <div class="form-group pgvcl-location-group">
-                    <label for="direct_district" class="form-input-label">
-                      <span>District</span>
-                      <span class="badge-tag">PGVCL</span>
-                    </label>
-                    <input type="text" id="direct_district" name="district" class="form-control" placeholder="e.g. GIR SOMNATH">
                   </div>
 
                   <!-- Mobile Number -->
@@ -1653,8 +2168,58 @@
                 </div>
               </div>
 
+              <!-- Torrent Bill requires only standard common fields -->
+              <div id="torrent-config-section" style="display:none;" aria-hidden="true"></div>
+
+              <!-- PGVCL-Specific Section (Visible only when PGVCL Bill is selected) -->
+              <div id="pgvcl-config-section" class="provider-specific-section pgvcl-only-section" style="display: none;">
+                <div class="form-section-card">
+                  <div class="section-header">
+                    <div class="section-icon pgvcl-icon">
+                      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3">
+                        <path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"/>
+                      </svg>
+                    </div>
+                    <div class="section-title-wrap">
+                      <h3>PGVCL Location & Administrative Details</h3>
+                      <p>Location parameters required specifically for the PGVCL bill template.</p>
+                    </div>
+                  </div>
+
+                  <div class="grid-2col">
+                    <div class="form-group pgvcl-field-group">
+                      <label for="direct_village_name" class="form-input-label">
+                        <span>Village Name</span>
+                      </label>
+                      <input type="text" id="direct_village_name" name="village_name" class="form-control pgvcl-input" placeholder="e.g. VERAVAL">
+                    </div>
+
+                    <div class="form-group pgvcl-field-group">
+                      <label for="direct_village" class="form-input-label">
+                        <span>Village</span>
+                      </label>
+                      <input type="text" id="direct_village" name="village" class="form-control pgvcl-input" placeholder="e.g. Veraval (M+OG) V">
+                    </div>
+
+                    <div class="form-group pgvcl-field-group">
+                      <label for="direct_taluka" class="form-input-label">
+                        <span>Taluka (TA)</span>
+                      </label>
+                      <input type="text" id="direct_taluka" name="taluka" class="form-control pgvcl-input" placeholder="e.g. Veraval">
+                    </div>
+
+                    <div class="form-group pgvcl-field-group">
+                      <label for="direct_district" class="form-input-label">
+                        <span>District</span>
+                      </label>
+                      <input type="text" id="direct_district" name="district" class="form-control pgvcl-input" placeholder="e.g. GIR SOMNATH">
+                    </div>
+                  </div>
+                </div>
+              </div>
+
               <!-- Sub-Section 2: Billing Period -->
-              <div class="form-section-card">
+              <div class="form-section-card" id="billing-period-section">
                 <div class="section-header">
                   <div class="section-icon">
                     <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2">
@@ -1692,7 +2257,7 @@
               </div>
 
               <!-- Sub-Section 3: Meter & Consumption -->
-              <div class="form-section-card">
+              <div class="form-section-card" id="meter-consumption-section">
                 <div class="section-header">
                   <div class="section-icon">
                     <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2">
@@ -1745,10 +2310,16 @@
 
                   <div class="derived-badges-wrap">
                     <span class="param-pill primary" id="period-count-chip">Bills to Generate: 1</span>
-                    <span class="param-pill">⚡ Three Phase</span>
-                    <span class="param-pill">🔌 5.50 kW Load</span>
-                    <span class="param-pill">✖️ Multiplier: 1</span>
-                    <span class="param-pill">🛡️ Zero Arrears</span>
+                    <!-- Torrent Specific Pills -->
+                    <span class="param-pill torrent-pill">⚡ Three Phase</span>
+                    <span class="param-pill torrent-pill">🔌 5.50 kW Load</span>
+                    <span class="param-pill torrent-pill">✖️ Multiplier: 1</span>
+                    <span class="param-pill torrent-pill">🛡️ Zero Arrears</span>
+                    <!-- PGVCL Provider Pills -->
+                    <span class="param-pill pgvcl-pill" style="display: none;">⚡ LT Distribution</span>
+                    <span class="param-pill pgvcl-pill" style="display: none;">🏛️ PGVCL Grid</span>
+                    <span class="param-pill pgvcl-pill" style="display: none;">🔢 Fixed MF: 1.0</span>
+                    <span class="param-pill pgvcl-pill" style="display: none;">📋 Sequential Bill No</span>
                   </div>
                 </div>
               </div>
@@ -1768,7 +2339,7 @@
           <div id="direct-status"></div>
 
           <!-- Bill Generation Results Card -->
-          <div class="bill-result-card" id="direct-result-card">
+          <div class="bill-result-card theme-torrent" id="direct-result-card">
             <div class="result-header">
               <span class="result-badge">
                 <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M20 6L9 17l-5-5"/></svg>
@@ -1785,7 +2356,7 @@
                   <strong id="result-cust-id">-</strong>
                 </div>
                 <div class="result-meta-item">
-                  <span>Bill Type / Template</span>
+                  <span>Bill Type</span>
                   <strong id="result-bill-type">Torrent Bill</strong>
                 </div>
                 <div class="result-meta-item">
@@ -1866,7 +2437,6 @@
                       <th>Units Billed</th>
                       <th>End Reading</th>
                       <th>Total Amount</th>
-                      <th>Template</th>
                       <th style="text-align: center;">Actions</th>
                     </tr>
                   </thead>
@@ -1899,37 +2469,30 @@
               </div>
 
               <div class="bill-type-selector-grid" role="radiogroup" aria-label="Batch Bill Type Selection">
-                <label class="bill-type-card selected" id="batch-bill-type-torrent-card">
+                <label class="bill-type-card torrent selected" id="batch-bill-type-torrent-card">
                   <input type="radio" name="batch_bill_type" value="Torrent Bill" class="batch-bill-type-radio" checked required>
                   <div class="bill-type-content">
-                    <div class="bill-type-top">
-                      <div class="bill-type-logo-badge torrent">
-                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4">
+                    <div class="bill-type-main">
+                      <div class="bill-type-logo-badge torrent" title="Torrent Power Logo">
+                        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round">
                           <polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2" />
                         </svg>
                       </div>
-                      <span class="bill-type-badge-pill">Torrent Power</span>
-                      <div class="bill-type-radio-circle"></div>
+                      <div class="bill-type-name">Torrent Bill</div>
                     </div>
-                    <div class="bill-type-name">Torrent Bill</div>
-                    <div class="bill-type-caption">Standard Torrent Power PDF template</div>
+                    <div class="bill-type-radio-circle"></div>
                   </div>
                 </label>
-                <label class="bill-type-card" id="batch-bill-type-pgvcl-card">
+                <label class="bill-type-card pgvcl" id="batch-bill-type-pgvcl-card">
                   <input type="radio" name="batch_bill_type" value="PGVCL Bill" class="batch-bill-type-radio" required>
                   <div class="bill-type-content">
-                    <div class="bill-type-top">
-                      <div class="bill-type-logo-badge pgvcl">
-                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3">
-                          <rect x="3" y="3" width="18" height="18" rx="2" />
-                          <path d="M7 7h10M7 12h10M7 17h6" />
-                        </svg>
+                    <div class="bill-type-main">
+                      <div class="bill-type-logo-badge pgvcl" title="PGVCL Official Logo">
+                        <img src="{{ url_for('static', filename='images/pgvcl_logo.png') }}" alt="PGVCL Logo" class="bill-type-logo-img" />
                       </div>
-                      <span class="bill-type-badge-pill pgvcl">pgvcl.jpeg</span>
-                      <div class="bill-type-radio-circle"></div>
+                      <div class="bill-type-name">PGVCL Bill</div>
                     </div>
-                    <div class="bill-type-name">PGVCL Bill</div>
-                    <div class="bill-type-caption">Paschim Gujarat Vij Co Ltd (pgvcl.jpeg template)</div>
+                    <div class="bill-type-radio-circle"></div>
                   </div>
                 </label>
               </div>
@@ -2248,19 +2811,143 @@
     const optTorrentCard = document.getElementById("bill-type-torrent-card");
     const optPgvclCard = document.getElementById("bill-type-pgvcl-card");
 
+    function updateBillTypeConditionalFields(billType) {
+      const isPgvcl = (billType === "PGVCL Bill");
+
+      const directBillSection = document.getElementById("direct-bill-section");
+      const directResultCard = document.getElementById("direct-result-card");
+
+      const torrentSection = document.getElementById("torrent-config-section");
+      const pgvclSection = document.getElementById("pgvcl-config-section");
+
+      const custIdLabel = document.getElementById("cust-id-label-text");
+      const custIdBadge = document.getElementById("cust-id-badge-tag");
+      const custIdInput = document.getElementById("direct_customer_id");
+
+      const cycleHint = document.getElementById("cycle-hint");
+      const btnLabel = document.getElementById("direct-btn-label");
+      const indicator = document.getElementById("direct-template-indicator");
+
+      const torrentPills = document.querySelectorAll(".torrent-pill");
+      const pgvclPills = document.querySelectorAll(".pgvcl-pill");
+
+      if (isPgvcl) {
+        // Dynamic theme switching to PGVCL Blue Theme
+        if (directBillSection) {
+          directBillSection.classList.remove("theme-torrent");
+          directBillSection.classList.add("theme-pgvcl");
+        }
+        if (directResultCard) {
+          directResultCard.classList.remove("theme-torrent");
+          directResultCard.classList.add("theme-pgvcl");
+        }
+
+        // Show PGVCL section, enable all inputs inside
+        if (pgvclSection) {
+          pgvclSection.style.display = "";
+          pgvclSection.querySelectorAll("input, select, textarea").forEach(el => {
+            el.disabled = false;
+          });
+        }
+        // Hide Torrent section, disable inputs inside so they never block validation or submit
+        if (torrentSection) {
+          torrentSection.style.display = "none";
+          torrentSection.querySelectorAll("input, select, textarea").forEach(el => {
+            el.disabled = true;
+            el.required = false;
+          });
+        }
+
+        // Dynamic labels, placeholders, and badges
+        if (custIdLabel) custIdLabel.innerHTML = 'Consumer No <span class="req-star">*</span>';
+        if (custIdBadge) {
+          custIdBadge.style.display = "none";
+        }
+        if (custIdInput) {
+          custIdInput.placeholder = "e.g. 01234567890";
+          custIdInput.title = "11-digit PGVCL Consumer Number";
+        }
+        if (cycleHint) {
+          cycleHint.textContent = "Monthly / Bi-Monthly";
+        }
+        if (btnLabel) {
+          btnLabel.textContent = "Generate PGVCL Bill";
+        }
+        if (indicator) {
+          indicator.textContent = "Template: PGVCL";
+          indicator.classList.add("pgvcl-badge-blue");
+        }
+
+        // Toggle derived reading pills
+        torrentPills.forEach(p => p.style.display = "none");
+        pgvclPills.forEach(p => p.style.display = "");
+      } else {
+        // Dynamic theme switching to Torrent Green Theme
+        if (directBillSection) {
+          directBillSection.classList.remove("theme-pgvcl");
+          directBillSection.classList.add("theme-torrent");
+        }
+        if (directResultCard) {
+          directResultCard.classList.remove("theme-pgvcl");
+          directResultCard.classList.add("theme-torrent");
+        }
+
+        // Torrent Bill uses only standard common fields - no extra section
+        if (torrentSection) {
+          torrentSection.style.display = "none";
+        }
+        // Hide PGVCL section, disable inputs inside & clear required
+        if (pgvclSection) {
+          pgvclSection.style.display = "none";
+          pgvclSection.querySelectorAll("input, select, textarea").forEach(el => {
+            el.disabled = true;
+            el.required = false;
+          });
+        }
+
+        // Dynamic labels, placeholders, and badges
+        if (custIdLabel) custIdLabel.innerHTML = 'Customer ID <span class="req-star">*</span>';
+        if (custIdBadge) {
+          custIdBadge.textContent = "Torrent Service No";
+          custIdBadge.classList.remove("pgvcl-badge-blue");
+        }
+        if (custIdInput) {
+          custIdInput.placeholder = "e.g. 743200550";
+          custIdInput.title = "9-digit Torrent Service Number";
+        }
+        if (cycleHint) {
+          cycleHint.textContent = "2-Month Cycle";
+        }
+        if (btnLabel) {
+          btnLabel.textContent = "Generate Torrent Bill";
+        }
+        if (indicator) {
+          indicator.textContent = "Template: Torrent Power";
+          indicator.classList.remove("pgvcl-badge-blue");
+        }
+
+        // Toggle derived reading pills
+        torrentPills.forEach(p => p.style.display = "");
+        pgvclPills.forEach(p => p.style.display = "none");
+      }
+    }
+
     billTypeRadios.forEach(radio => {
       radio.addEventListener("change", () => {
         if (radio.value === "PGVCL Bill") {
           optPgvclCard.classList.add("selected");
           optTorrentCard.classList.remove("selected");
-          if (directIndicator) directIndicator.textContent = "Template: PGVCL (pgvcl.jpeg)";
         } else {
           optTorrentCard.classList.add("selected");
           optPgvclCard.classList.remove("selected");
-          if (directIndicator) directIndicator.textContent = "Template: Torrent Power";
         }
+        updateBillTypeConditionalFields(radio.value);
       });
     });
+
+    // Execute immediately on page load to configure fields for initial selected provider
+    const initialCheckedBillType = document.querySelector('input[name="bill_type"]:checked')?.value || "Torrent Bill";
+    updateBillTypeConditionalFields(initialCheckedBillType);
 
     // Bill Type Selection Handlers (Batch Excel)
     const batchBillTypeRadios = document.querySelectorAll('input[name="batch_bill_type"]');
@@ -2273,7 +2960,7 @@
         if (radio.value === "PGVCL Bill") {
           optBatchPgvcl.classList.add("selected");
           optBatchTorrent.classList.remove("selected");
-          if (batchIndicator) batchIndicator.textContent = "Template: PGVCL (pgvcl.jpeg)";
+          if (batchIndicator) batchIndicator.textContent = "Template: PGVCL";
         } else {
           optBatchTorrent.classList.add("selected");
           optBatchPgvcl.classList.remove("selected");
@@ -2307,11 +2994,18 @@
         end_month: endFormatted,
         start_reading: parseFloat(startReadingInput.value),
         reference_units: parseFloat(unitsInput.value),
-        village_name: document.getElementById("direct_village_name")?.value.trim() || "",
-        village: document.getElementById("direct_village")?.value.trim() || "",
-        taluka: document.getElementById("direct_taluka")?.value.trim() || "",
-        district: document.getElementById("direct_district")?.value.trim() || "",
       };
+
+      if (selectedBillType === "PGVCL Bill") {
+        const vName = document.getElementById("direct_village_name")?.value.trim();
+        const vVillage = document.getElementById("direct_village")?.value.trim();
+        const vTaluka = document.getElementById("direct_taluka")?.value.trim();
+        const vDistrict = document.getElementById("direct_district")?.value.trim();
+        if (vName) payload.village_name = vName;
+        if (vVillage) payload.village = vVillage;
+        if (vTaluka) payload.taluka = vTaluka;
+        if (vDistrict) payload.district = vDistrict;
+      }
 
       directGenerateBtn.disabled = true;
       directGenerateBtn.innerHTML = '<span class="spinner"></span><span>Generating Bills...</span>';
@@ -2367,7 +3061,6 @@
               <td><span class="units-badge">${s.units} kWh</span></td>
               <td class="mono-val">${s.end_reading}</td>
               <td class="total-amount">₹${parseFloat(s.total_amount).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
-              <td><span class="badge-tag highlight" style="font-size:0.75rem;">${b.template_used}</span></td>
               <td style="text-align: center;">
                 <div class="batch-row-actions">
                   <button type="button" class="batch-btn-sm btn-row-preview" data-preview-url="${b.preview_url}" title="Preview PDF">
@@ -2405,8 +3098,7 @@
           const resultBillTypeEl = document.getElementById("result-bill-type");
           if (resultBillTypeEl) {
             const billTypeDisplay = data.bill_type || selectedBillType;
-            const tUsed = data.template_used || (data.bills && data.bills[0] ? data.bills[0].template_used : "Auto");
-            resultBillTypeEl.textContent = `${billTypeDisplay} (${tUsed})`;
+            resultBillTypeEl.textContent = billTypeDisplay;
           }
 
           document.getElementById("result-month").textContent = summary.billing_month;
@@ -2420,6 +3112,15 @@
           multiBillView.style.display = "none";
         }
 
+        const resultProvider = data.bill_type || selectedBillType;
+        if (resultProvider === "PGVCL Bill") {
+          directResultCard.classList.remove("theme-torrent");
+          directResultCard.classList.add("theme-pgvcl");
+        } else {
+          directResultCard.classList.remove("theme-pgvcl");
+          directResultCard.classList.add("theme-torrent");
+        }
+
         directResultCard.style.display = "block";
         directResultCard.scrollIntoView({ behavior: "smooth", block: "nearest" });
 
@@ -2431,11 +3132,13 @@
           </div>`;
       } finally {
         directGenerateBtn.disabled = false;
+        const currentSelectedType = document.querySelector('input[name="bill_type"]:checked')?.value || "Torrent Bill";
+        const restoreBtnText = (currentSelectedType === "PGVCL Bill") ? "Generate PGVCL Bill" : "Generate Torrent Bill";
         directGenerateBtn.innerHTML = `
           <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round">
             <polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2" />
           </svg>
-          <span id="direct-btn-label">Generate Bill</span>`;
+          <span id="direct-btn-label">${restoreBtnText}</span>`;
       }
     });
 

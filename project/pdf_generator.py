@@ -1547,8 +1547,16 @@ def _generate_pgvcl_bill_pdf(template_path: str, consumer: dict, bill, values: d
     mask_cell(88, 560, 427, 209)
     for vx in [87, 268, 432, 516]:
         draw_v_line(vx, 559, 770, (0.45, 0.45, 0.45), 0.55)
+
+    # Left table horizontal lines (x = 87 to 432)
     for hy in [559, 584, 612, 638, 664, 690, 717, 744, 770]:
-        draw_h_line(87, 516, hy, (0.45, 0.45, 0.45), 0.55)
+        draw_h_line(87, 432, hy, (0.45, 0.45, 0.45), 0.55)
+
+    # Middle column 3 horizontal lines (x = 432 to 516) - exactly matches PGVCL reference ref_prov.png & pgvcl_last_exact.png!
+    # No horizontal line at y=584 inside column 3: PROVISIONAL and BILL AMT. share the top box (559 to 612)
+    # No horizontal line at y=690 inside column 3: Last and Payment share the 53pt box (664 to 717)
+    for hy in [559, 612, 638, 664, 717, 744, 770]:
+        draw_h_line(432, 516, hy, (0.45, 0.45, 0.45), 0.55)
 
     ref_u = consumer.get('reference_units') or bill.units_consumed
     prov_val = float(consumer.get('provisional_bill_amount', 0.0) or 0.0)
@@ -1574,16 +1582,24 @@ def _generate_pgvcl_bill_pdf(template_path: str, consumer: dict, bill, values: d
     draw_text_in_cell(268, 717, 164, 27, "0.00", font=print_font_reg, size=8.5, align='center', color=(0.10, 0.12, 0.15))
     draw_text_in_cell(268, 744, 164, 26, "0.00", font=print_font_reg, size=8.5, align='center', color=(0.10, 0.12, 0.15))
 
-    # Col 3 Labels & Values (432 to 516) (Requirement 5)
-    draw_text_in_cell(432, 559, 84, 25, "PROVISIONAL", font=print_font_bold, size=7.5, align='center', color=(0.10, 0.12, 0.15))
-    draw_text_in_cell(432, 584, 84, 28, "BILL AMT.", font=print_font_bold, size=7.5, align='center', color=(0.10, 0.12, 0.15))
-    draw_text_in_cell(432, 612, 84, 26, f"{prov_val:,.2f}", font=print_font_reg, size=8.5, align='center', color=(0.10, 0.12, 0.15))
-    draw_text_in_cell(432, 638, 84, 26, "Last", font=print_font_bold, size=7.8, align='center', color=(0.10, 0.12, 0.15))
-    draw_text_in_cell(432, 664, 84, 26, "Payment", font=print_font_bold, size=7.8, align='center', color=(0.10, 0.12, 0.15))
-    # Row 6 (690 to 717) blank
-    # Row 7 (717 to 744) previous payment
-    draw_text_in_cell(432, 717, 84, 27, f"{prev_pay:,.2f}", font=print_font_reg, size=8.5, align='center', color=(0.10, 0.12, 0.15))
-    # Row 8 (744 to 770) blank
+    # Col 3 Labels & Values (432 to 516) - Requirement 5 & Master PGVCL Reference
+    # Box 1 (559 to 612, height 53 pt): PROVISIONAL / BILL AMT. centered inside single tall box
+    draw_text_in_cell(432, 563, 84, 24, "PROVISIONAL", font=print_font_reg, size=7.2, align='center', color=(0.10, 0.12, 0.15))
+    draw_text_in_cell(432, 584, 84, 24, "BILL AMT.", font=print_font_reg, size=7.2, align='center', color=(0.10, 0.12, 0.15))
+
+    # Box 2 (612 to 638, height 26 pt): 0.00 centered directly below BILL AMT.
+    draw_text_in_cell(432, 612, 84, 26, f"{prov_val:.2f}", font=print_font_reg, size=8.0, align='center', color=(0.10, 0.12, 0.15))
+
+    # Box 3 (638 to 664, height 26 pt): BLANK cell matching reference
+
+    # Box 4 (664 to 717, height 53 pt): Last & Payment inside single 53pt box matching PGVCL reference exactly
+    draw_text_in_cell(432, 667, 84, 22, "Last", font=print_font_reg, size=7.8, align='center', color=(0.10, 0.12, 0.15))
+    draw_text_in_cell(432, 690, 84, 22, "Payment", font=print_font_reg, size=7.8, align='center', color=(0.10, 0.12, 0.15))
+
+    # Box 5 (717 to 744, height 27 pt): Previous payment amount centered
+    draw_text_in_cell(432, 717, 84, 27, f"{prev_pay:.2f}", font=print_font_reg, size=8.2, align='center', color=(0.10, 0.12, 0.15))
+
+    # Box 6 (744 to 770, height 26 pt): BLANK cell matching reference
 
     # 7. Gujarati Notice Box (x = 87 to 516, y = 770 to 926) (Requirement 2)
     mask_cell(88, 771, 427, 154)

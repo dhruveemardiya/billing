@@ -141,5 +141,71 @@
     "meter_status": "1",
     "mf": "1.0",
     "mtr_chg_code": "A"
+  },
+  "TEST_HW_0": {
+    "customer_id": "TEST_HW_0",
+    "meter_no": "ONE-7291205",
+    "census_code": "12105010",
+    "feeder_code": "6",
+    "route_code": "3/4/5/22",
+    "base_bill_no": 3004292716,
+    "meter_status": "1",
+    "mf": "1.0",
+    "mtr_chg_code": "A"
+  },
+  "TEST_HW_1": {
+    "customer_id": "TEST_HW_1",
+    "meter_no": "ONE-4930894",
+    "census_code": "12104262",
+    "feeder_code": "3",
+    "route_code": "3/4/5/35",
+    "base_bill_no": 3004808057,
+    "meter_status": "1",
+    "mf": "1.0",
+    "mtr_chg_code": "A"
+  },
+  "TEST_HW_2": {
+    "customer_id": "TEST_HW_2",
+    "meter_no": "ONE-8798606",
+    "census_code": "12102566",
+    "feeder_code": "2",
+    "route_code": "3/4/5/40",
+    "base_bill_no": 3004352207,
+    "meter_status": "1",
+    "mf": "1.0",
+    "mtr_chg_code": "A"
+  },
+  "TEST_HW_3": {
+    "customer_id": "TEST_HW_3",
+    "meter_no": "ONE-2247369",
+    "census_code": "12104372",
+    "feeder_code": "4",
+    "route_code": "3/4/5/24",
+    "base_bill_no": 3004833697,
+    "meter_status": "1",
+    "mf": "1.0",
+    "mtr_chg_code": "A"
+  },
+  "TEST_HW_4": {
+    "customer_id": "TEST_HW_4",
+    "meter_no": "ONE-1452181",
+    "census_code": "12106400",
+    "feeder_code": "5",
+    "route_code": "3/4/5/22",
+    "base_bill_no": 3004781277,
+    "meter_status": "1",
+    "mf": "1.0",
+    "mtr_chg_code": "A"
+  },
+  "01234567890": {
+    "customer_id": "01234567890",
+    "meter_no": "ONE-9081732",
+    "census_code": "12105565",
+    "feeder_code": "5",
+    "route_code": "3/4/5/13",
+    "base_bill_no": 3004651213,
+    "meter_status": "1",
+    "mf": "1.0",
+    "mtr_chg_code": "A"
   }
 }
