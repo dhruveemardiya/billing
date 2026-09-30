@@ -25,6 +25,7 @@ import mapping_engine
 import auth_manager
 import direct_bill_service
 import legacy_store
+import font_manager
 from utils.file_utils import safe_customer_id, zip_directory, build_bill_filename, extract_billing_month_tag
 
 app = Flask(__name__)
@@ -34,9 +35,18 @@ app.config["MAX_CONTENT_LENGTH"] = config.MAX_CONTENT_LENGTH_MB * 1024 * 1024
 os.makedirs(config.UPLOAD_FOLDER, exist_ok=True)
 os.makedirs(config.OUTPUT_FOLDER, exist_ok=True)
 
+# Mandatory Startup Check: Validate Gujarati Unicode Font (Noto Sans Gujarati) registration & rendering
+try:
+    _guj_font_status = font_manager.validate_gujarati_font()
+    print(f"[STARTUP CHECK PASSED] Gujarati font verified: {_guj_font_status['regular_font']} ({_guj_font_status['regular_file']})")
+except Exception as _e:
+    print(f"[STARTUP CHECK FAILED] Gujarati font error: {_e}")
+    raise RuntimeError(f"Startup Gujarati font verification failed: {_e}") from _e
+
 DEFAULT_MASTER_TEMPLATE = os.path.join(os.path.dirname(os.path.abspath(__file__)), "DEMONEWPDF.pdf")
 if not os.path.exists(DEFAULT_MASTER_TEMPLATE):
     DEFAULT_MASTER_TEMPLATE = os.path.join(os.path.dirname(os.path.abspath(__file__)), "demo.pdf")
+
 
 
 def _allowed_file(filename: str, allowed_extensions: set) -> bool:
@@ -121,7 +131,20 @@ def download_template():
     )
 
 
+@app.route("/api/font-status")
+def api_font_status():
+    """
+    Returns the Gujarati Unicode font status & pre-flight rendering validation.
+    """
+    try:
+        diag = font_manager.validate_gujarati_font()
+        return jsonify({"success": True, "details": diag})
+    except Exception as exc:
+        return jsonify({"success": False, "error": str(exc)}), 500
+
+
 @app.route("/api/generate-direct-bill", methods=["POST"])
+
 def api_generate_direct_bill():
     """
     Direct input billing endpoint. Validates user form data, calculates bill,

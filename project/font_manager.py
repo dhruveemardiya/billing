@@ -15,8 +15,10 @@ from fontTools.agl import AGL2UV
 
 _FONT_CACHE_DIR = os.path.join(os.path.dirname(__file__), "static", "extracted_fonts")
 _BUNDLED_FONTS_DIR = os.path.join(os.path.dirname(__file__), "static", "bundled_fonts")
+_PROJECT_FONTS_DIR = os.path.join(os.path.dirname(__file__), "fonts")
 _registered_for = set()
 _registered_cache = {}
+
 
 
 def _template_hash(template_path: str) -> str:
@@ -513,3 +515,138 @@ def ensure_template_fonts_registered(template_path: str) -> dict:
     _registered_for.add(key)
     _registered_cache[key] = registered
     return registered
+
+
+# ==============================================================================
+# Dedicated Gujarati Unicode Font Support (Noto Sans Gujarati)
+# ==============================================================================
+
+GUJARATI_FONT_FAMILY = "NotoSansGujarati"
+GUJARATI_FONT_REGULAR = "NotoSansGujarati"
+GUJARATI_FONT_BOLD = "NotoSansGujarati-Bold"
+
+
+def get_gujarati_font_paths() -> tuple:
+    """
+    Locates the bundled Noto Sans Gujarati font files inside the project.
+    Searches project/fonts/ first, then project/static/bundled_fonts/.
+    Returns (regular_path, bold_path).
+    """
+    search_dirs = [
+        _PROJECT_FONTS_DIR,
+        _BUNDLED_FONTS_DIR,
+        os.path.join(os.path.dirname(__file__), "assets", "fonts"),
+    ]
+
+    reg_file = "NotoSansGujarati-Regular.ttf"
+    bold_file = "NotoSansGujarati-Bold.ttf"
+
+    reg_path = None
+    bold_path = None
+
+    for d in search_dirs:
+        candidate_reg = os.path.join(d, reg_file)
+        if os.path.isfile(candidate_reg) and not reg_path:
+            reg_path = candidate_reg
+
+        candidate_bold = os.path.join(d, bold_file)
+        if os.path.isfile(candidate_bold) and not bold_path:
+            bold_path = candidate_bold
+
+    return reg_path, bold_path
+
+
+def ensure_gujarati_fonts_registered() -> tuple:
+    """
+    Registers Noto Sans Gujarati TrueType fonts with ReportLab.
+    Ensures font family mapping so <b> tags automatically use bold glyphs.
+    Guarantees that Gujarati text never falls back to Helvetica/Times.
+    Returns (regular_font_name, bold_font_name).
+    """
+    reg_path, bold_path = get_gujarati_font_paths()
+
+    if not reg_path or not os.path.exists(reg_path):
+        raise FileNotFoundError(
+            f"Gujarati Unicode font '{reg_path or 'NotoSansGujarati-Regular.ttf'}' not found! "
+            f"Searched dirs: {[_PROJECT_FONTS_DIR, _BUNDLED_FONTS_DIR]}. "
+            f"Production Gujarati font bundling is required."
+        )
+
+    registered_names = pdfmetrics.getRegisteredFontNames()
+
+    if GUJARATI_FONT_REGULAR not in registered_names:
+        pdfmetrics.registerFont(TTFont(GUJARATI_FONT_REGULAR, reg_path))
+
+    effective_bold = bold_path if (bold_path and os.path.exists(bold_path)) else reg_path
+    if GUJARATI_FONT_BOLD not in registered_names:
+        pdfmetrics.registerFont(TTFont(GUJARATI_FONT_BOLD, effective_bold))
+
+    # Register font family for seamless <b>...</b> tag support in ReportLab Paragraphs
+    try:
+        pdfmetrics.registerFontFamily(
+            GUJARATI_FONT_FAMILY,
+            normal=GUJARATI_FONT_REGULAR,
+            bold=GUJARATI_FONT_BOLD,
+            italic=GUJARATI_FONT_REGULAR,
+            boldItalic=GUJARATI_FONT_BOLD,
+        )
+    except Exception as e:
+        print("[font_manager] registerFontFamily notice:", e)
+
+    return GUJARATI_FONT_REGULAR, GUJARATI_FONT_BOLD
+
+
+def validate_gujarati_font() -> dict:
+    """
+    Startup & health check validation that verifies:
+    1. Gujarati font files exist on disk inside the project.
+    2. ReportLab successfully registers the TrueType fonts and family.
+    3. Gujarati characters render without throwing errors.
+    4. An in-memory test PDF is generated and text extraction confirms actual
+       Gujarati Unicode characters exist without missing glyph fallbacks.
+    """
+    reg_path, bold_path = get_gujarati_font_paths()
+    if not reg_path or not os.path.exists(reg_path):
+        raise FileNotFoundError(
+            f"Startup validation failed: Gujarati font file not found. "
+            f"Checked: {reg_path}"
+        )
+
+    reg_name, bold_name = ensure_gujarati_fonts_registered()
+
+    # Pre-flight rendering verification using in-memory ReportLab Canvas & Paragraph
+    from reportlab.pdfgen import canvas
+    from reportlab.lib.styles import ParagraphStyle
+    from reportlab.platypus import Paragraph
+
+    test_buf = io.BytesIO()
+    c = canvas.Canvas(test_buf, pagesize=(300, 200))
+    sample_text = "<b>નોટીસ :-</b> વીજ અધિનિયમ ૨૦૦૩ •ભૂલચૂક લેવી દેવી"
+    style = ParagraphStyle("TestGuj", fontName=reg_name, fontSize=7, leading=9)
+    p = Paragraph(sample_text, style)
+    p.wrap(250, 150)
+    p.drawOn(c, 10, 80)
+
+    c.setFont(bold_name, 7.5)
+    c.drawString(10, 40, "•ભૂલચૂક લેવી દેવી")
+    c.save()
+
+    test_buf.seek(0)
+    reader = PdfReader(test_buf)
+    extracted_text = reader.pages[0].extract_text()
+    guj_chars = [ch for ch in extracted_text if 0x0A80 <= ord(ch) <= 0x0AFF]
+    if not guj_chars:
+        raise RuntimeError(
+            "Startup validation failed: Rendered test PDF does not contain extractable Gujarati characters! "
+            "Font might not be properly mapped or embedded."
+        )
+
+    return {
+        "status": "ok",
+        "family": GUJARATI_FONT_FAMILY,
+        "regular_font": reg_name,
+        "bold_font": bold_name,
+        "regular_file": reg_path,
+        "bold_file": bold_path,
+        "sample_extracted_count": len(guj_chars),
+    }

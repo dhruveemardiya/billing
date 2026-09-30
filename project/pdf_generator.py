@@ -1225,22 +1225,10 @@ def _generate_pgvcl_bill_pdf(template_path: str, consumer: dict, bill, values: d
         except Exception:
             pass
 
-    guj_font_reg = "Helvetica"
-    guj_font_bold = "Helvetica-Bold"
-    if os.path.exists(r"C:\Windows\Fonts\shruti.ttf"):
-        try:
-            if "Shruti" not in pdfmetrics.getRegisteredFontNames():
-                pdfmetrics.registerFont(TTFont("Shruti", r"C:\Windows\Fonts\shruti.ttf"))
-            guj_font_reg = "Shruti"
-        except Exception:
-            pass
-    if os.path.exists(r"C:\Windows\Fonts\shrutib.ttf"):
-        try:
-            if "Shruti-Bold" not in pdfmetrics.getRegisteredFontNames():
-                pdfmetrics.registerFont(TTFont("Shruti-Bold", r"C:\Windows\Fonts\shrutib.ttf"))
-            guj_font_bold = "Shruti-Bold"
-        except Exception:
-            pass
+    # Dedicated Gujarati Unicode font support (Noto Sans Gujarati bundled in project)
+    import font_manager
+    guj_font_reg, guj_font_bold = font_manager.ensure_gujarati_fonts_registered()
+
 
     hand_font_name = "Helvetica-Bold"
     for fname, fpath in [
@@ -1752,7 +1740,8 @@ def _generate_pgvcl_bill_pdf(template_path: str, consumer: dict, bill, values: d
     draw_text_in_cell(87, 1036, 120, 20, "Message :-", font=print_font_bold, size=8.2, pad_x=6.0, color=(0.10, 0.12, 0.15))
     msg_custom = str(consumer.get('message') or '').strip()
     if msg_custom:
-        draw_text_in_cell(88, 1058, 590, 24, msg_custom, font=print_font_reg, size=8.5, pad_x=8.0, color=(0.10, 0.12, 0.15))
+        msg_font = guj_font_reg if any(0x0A80 <= ord(ch) <= 0x0AFF for ch in msg_custom) else print_font_reg
+        draw_text_in_cell(88, 1058, 590, 24, msg_custom, font=msg_font, size=8.5, pad_x=8.0, color=(0.10, 0.12, 0.15))
 
     # Right: Gujarati heading •ભૂલચૂક લેવી દેવી + Junior Asst.'s Sign + Blue ink signature loop
     draw_text_in_cell(680, 1038, 221, 18, "•ભૂલચૂક લેવી દેવી", font=guj_font_bold, size=7.8, align='left', pad_x=8.0, color=(0.10, 0.12, 0.15))

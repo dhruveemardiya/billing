@@ -207,5 +207,16 @@
     "meter_status": "1",
     "mf": "1.0",
     "mtr_chg_code": "A"
+  },
+  "GUJ_TEST_999": {
+    "customer_id": "GUJ_TEST_999",
+    "meter_no": "ONE-7759262",
+    "census_code": "12104604",
+    "feeder_code": "5",
+    "route_code": "3/4/5/42",
+    "base_bill_no": 3004573718,
+    "meter_status": "1",
+    "mf": "1.0",
+    "mtr_chg_code": "A"
   }
 }
